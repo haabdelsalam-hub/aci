@@ -1,0 +1,7 @@
+all:
+  hosts:
+    apic1:
+      ansible_host: 192.168.255.100  # Replace with your APIC IP
+  vars:
+    ansible_connection: local
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"

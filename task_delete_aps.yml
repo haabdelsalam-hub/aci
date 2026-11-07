@@ -1,0 +1,20 @@
+---
+- name: Load targeted AP deletion matrix file dynamically per environment
+  ansible.builtin.include_vars:
+    file: "delete_ap_{{ env | default('prod') }}_matrix.yml"
+
+- name: Teardown - Remove Targeted Application Profiles
+  cisco.aci.aci_ap:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    tenant: "{{ tenant_name }}"
+    ap: "{{ item }}"
+    state: absent
+  loop: "{{ delete_aps_list | default([]) }}"
+  loop_control:
+    label: "Tenant: {{ tenant_name }} -> Deleting AP: {{ item }}"
+  when: delete_aps_list is defined and delete_aps_list | length > 0
+

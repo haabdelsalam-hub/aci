@@ -1,0 +1,28 @@
+---
+tenant_name: "Tenant_Production"
+
+vlan_migration_list:
+  - vlan_id: 10
+    name: "Web_Prod"
+    ap_name: "AP_Web_Stack"
+    vrf_name: "VRF_Prod_Web"
+    # DYNAMIC DOMAIN ASSIGNATIONS FOR THIS SPECIFIC VLAN:
+    vmware_domains:
+      - "vCenter_Cluster_A_VMM"
+      - "vCenter_Cluster_B_VMM"
+    nutanix_domains:
+      - "PrismCentral_Zone1_VMM"
+    physical_domains:
+      - "BareMetal_Rack1_PhysDom"
+
+  - vlan_id: 20
+    name: "DB_Prod"
+    ap_name: "AP_Database_Cluster"
+    vrf_name: "VRF_Prod_Data"
+    # THIS VLAN ONLY GOES TO ESXI AND BARE-METAL (NO NUTANIX)
+    vmware_domains:
+      - "vCenter_Cluster_C_VMM"
+    nutanix_domains: []
+    physical_domains:
+      - "Oracle_Exadata_PhysDom"
+

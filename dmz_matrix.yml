@@ -1,0 +1,28 @@
+---
+tenant_name: "Tenant_Tenant_DMZ"
+vlan_migration_list:
+
+  - vlan_id: 210
+    name: "Web_dmz"
+    ap_name: "AP_Web_Stack"
+    vrf_name: "VRF_dmz_Web"
+    # DYNAMIC DOMAIN ASSIGNATIONS FOR THIS SPECIFIC VLAN:
+    vmware_domains:
+      - "vCenter_Cluster_A_VMM"
+      - "vCenter_Cluster_B_VMM"
+    nutanix_domains:
+      - "PrismCentral_Zone1_VMM"
+    physical_domains:
+      - "BareMetal_Rack1_PhysDom"
+
+  - vlan_id: 220
+    name: "DB_dmz"
+    ap_name: "AP_Database_Cluster"
+    vrf_name: "VRF_dmz_Data"
+    # THIS VLAN ONLY GOES TO ESXI AND BARE-METAL (NO NUTANIX)
+    vmware_domains:
+      - "vCenter_Cluster_C_VMM"
+    nutanix_domains: []
+    physical_domains:
+      - "Oracle_Exadata_PhysDom"
+

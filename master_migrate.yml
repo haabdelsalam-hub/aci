@@ -1,0 +1,71 @@
+---
+- name: Master Cross-Platform Multi-Tenant Migration Playbook
+  hosts: apic1
+  gather_facts: no
+  connection: local
+
+  vars_prompt:
+    - name: apic_pass
+      prompt: "Enter your APIC admin password"
+      private: yes
+
+  vars_files:
+    - "{{ matrix_file | default('vlan_matrix.yml') }}"
+
+  vars:
+    apic_login:
+      host: "{{ ansible_host }}"
+      username: "admin"
+      password: "{{ apic_pass }}"
+      use_ssl: yes
+      validate_certs: no
+    # Hardcoded domain variables have been completely removed!
+
+  tasks:
+    - name: Run Automated Safety Configuration Snapshot
+      ansible.builtin.import_tasks: task_create_snapshot.yml
+      tags: [always, core, vmware, nutanix, physical, rollback]
+
+    - name: Ensure Global Fabric Domain Definitions Exist
+      ansible.builtin.import_tasks: task_create_global_domains.yml
+      tags: [core, base_network, vmware, nutanix, physical]
+
+    - name: Deploy Core ACI Infrastructure constructs
+      ansible.builtin.import_tasks: task_core_fabric.yml
+      tags: [core]
+
+    - name: Deploy VMware Distributed Virtual Switch Bindings
+      ansible.builtin.import_tasks: task_bind_vmware.yml
+      tags: [vmware]
+
+    - name: Deploy Nutanix AHV Prism Central Bindings
+      ansible.builtin.import_tasks: task_bind_nutanix.yml
+      tags: [nutanix]
+
+    - name: Deploy Physical Bare-Metal Domain Bindings
+      ansible.builtin.import_tasks: task_bind_physical.yml
+      tags: [physical]
+
+
+ # ----------------------------------------------------
+    # GRANULAR TEARDOWN TASKS (Fixed with static import)
+    # ----------------------------------------------------
+    - name: Execute Granular EPG Teardown
+      ansible.builtin.import_tasks: task_delete_epgs.yml # <-- Changed to import_tasks
+      tags: [never, rollback, delete_epg]
+
+    - name: Execute Granular Application Profile Teardown
+      ansible.builtin.import_tasks: task_delete_aps.yml  # <-- Changed to import_tasks
+      tags: [never, rollback, delete_ap]
+
+    - name: Execute Granular Bridge Domain Teardown
+      ansible.builtin.import_tasks: task_delete_bds.yml  # <-- Changed to import_tasks
+      tags: [never, rollback, delete_bd]
+
+    # ----------------------------------------------------
+    # POST-MIGRATION REPORTING
+    # ----------------------------------------------------
+    - name: Generate Post-Migration Verification Summary
+      ansible.builtin.import_tasks: task_generate_report.yml
+      tags: [never, report, verify]
+

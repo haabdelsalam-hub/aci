@@ -1,0 +1,62 @@
+---
+- name: Interactive Rollback Cisco ACI from Selected Snapshot
+  hosts: apic1
+  gather_facts: no
+  connection: local
+
+  vars_prompt:
+    - name: apic_pass
+      prompt: "Enter APIC admin password"
+      private: yes
+
+  vars:
+    apic_login:
+      host: "{{ ansible_host }}"
+      username: "admin"
+      password: "{{ apic_pass }}"
+      use_ssl: yes
+      validate_certs: no
+    export_policy_name: "Ansible_PreMigration_Backup"
+    import_policy_name: "Ansible_Emergency_Rollback"
+
+  tasks:
+    - name: Phase 1 - Query and prompt for snapshot selection
+      ansible.builtin.import_tasks: task_find_snapshot_interactive.yml
+
+    - name: Phase 2 - Define the APIC Configuration Import Policy
+      cisco.aci.aci_config_rollback:
+        host: "{{ apic_login.host }}"
+        username: "{{ apic_login.username }}"
+        password: "{{ apic_login.password }}"
+        use_ssl: "{{ apic_login.use_ssl }}"
+        validate_certs: "{{ apic_login.validate_certs }}"
+        export_policy: "{{ export_policy_name }}"
+        import_policy: "{{ import_policy_name }}"
+        snapshot: "{{ selected_snapshot_file }}"
+        import_mode: "atomic"
+        import_type: "replace"
+        state: rollback
+
+    - name: Phase 3 - Forcefully Trigger the Import Engine Execution
+      cisco.aci.aci_rest:
+        host: "{{ apic_login.host }}"
+        username: "{{ apic_login.username }}"
+        password: "{{ apic_login.password }}"
+        use_ssl: "{{ apic_login.use_ssl }}"
+        validate_certs: "{{ apic_login.validate_certs }}"
+        path: "/api/node/mo/uni/fabric/configimp-{{ import_policy_name }}.json"
+        method: post
+        content:
+          configImportP:
+            attributes:
+              name: "{{ import_policy_name }}"
+              fileName: "{{ selected_snapshot_file }}"
+              importMode: "atomic"
+              importType: "replace"
+              adminSt: "triggered"  # Correct way to force immediate execution on APIC
+
+    - name: Phase 4 - Wait for ACI Fabric to complete Rollback Processing
+      ansible.builtin.pause:
+        prompt: "Waiting 15 seconds for APIC to complete rollback processing and sync switches..."
+        seconds: 15
+

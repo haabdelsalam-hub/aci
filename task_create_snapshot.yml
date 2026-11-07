@@ -1,0 +1,21 @@
+---
+- name: Snapshot - Generate Unique Timestamp for Backup File
+  ansible.builtin.set_fact:
+    snapshot_name: "PreMigrate_{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+- name: Snapshot - Trigger On-Demand ACI Configuration Export
+  cisco.aci.aci_config_snapshot:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    export_policy: "Ansible_PreMigration_Backup"
+    max_count: 10                   # Keeps last 10 historical snapshots on the APIC
+    description: "Automated snapshot created by Ansible before migration run."
+    state: present
+
+- name: Snapshot - Pause Briefly to Allow APIC to Initialize Backup
+  ansible.builtin.pause:
+    seconds: 5
+

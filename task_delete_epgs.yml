@@ -1,0 +1,21 @@
+---
+- name: Load targeted EPG deletion matrix file dynamically per environment
+  ansible.builtin.include_vars:
+    file: "delete_epg_{{ env | default('prod') }}_matrix.yml" # Matches delete_epg_prod_matrix.yml or delete_epg_dmz_matrix.yml
+
+- name: Teardown - Remove Targeted EPGs
+  cisco.aci.aci_epg:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    tenant: "{{ tenant_name }}"
+    ap: "{{ item.ap_name }}"
+    epg: "EPG_VLAN_{{ item.vlan_id }}"
+    state: absent
+  loop: "{{ delete_epgs_list | default([]) }}"
+  loop_control:
+    label: "Tenant: {{ tenant_name }} -> AP: {{ item.ap_name }} -> Deleting EPG_VLAN_{{ item.vlan_id }}"
+  when: delete_epgs_list is defined and delete_epgs_list | length > 0
+

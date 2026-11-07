@@ -1,0 +1,4 @@
+---
+delete_epgs_list:
+  - { ap_name: "AP_Web_DMZ", vlan_id: 10 }
+

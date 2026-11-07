@@ -1,0 +1,3 @@
+VLAN_ID,Network_Name,Tenant,App_Profile,VRF_Name,BD_Routing_Disabled,VMware_VMM_Bound,Nutanix_VMM_Bound,Physical_Bound
+10,Web_Prod,Tenant_Production,AP_Web_Stack,VRF_Prod_Web,Yes,Yes,Yes,Yes
+20,DB_Prod,Tenant_Production,AP_Database_Cluster,VRF_Prod_Data,Yes,Yes,No,Yes

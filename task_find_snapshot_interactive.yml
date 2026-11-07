@@ -1,0 +1,46 @@
+---
+- name: Query APIC for existing configuration snapshots natively
+  cisco.aci.aci_config_snapshot:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    export_policy: "Ansible_PreMigration_Backup"
+    state: query
+  register: snapshot_query_result
+
+- name: Fail if no snapshots are found under the policy
+  ansible.builtin.fail:
+    msg: "No snapshots found for export policy 'Ansible_PreMigration_Backup'."
+  when: snapshot_query_result.current | length == 0
+
+- name: Extract snapshot filenames using wildcard string matching
+  ansible.builtin.set_fact:
+    snapshot_filenames: "{{ snapshot_query_result | string | regex_findall('[a-zA-Z0-9_-]+\\.tar\\.gz') | unique }}"
+
+- name: Fail if text extraction returned an empty list
+  ansible.builtin.fail:
+    msg: "Failed to extract filenames from APIC response. Please check policy configurations."
+  when: snapshot_filenames | length == 0
+
+- name: Display available snapshots on screen
+  ansible.builtin.debug:
+    msg: "{{ idx + 1 }}) Snapshot: {{ item }}"
+  loop: "{{ snapshot_filenames }}"
+  loop_control:
+    index_var: idx
+
+- name: Prompt user to choose a snapshot from the list above
+  ansible.builtin.pause:
+    prompt: "Enter the number of the snapshot you want to restore (e.g., 1, 2, 3)"
+  register: user_choice
+
+- name: Map user selection back to the corresponding filename
+  ansible.builtin.set_fact:
+    selected_snapshot_file: "{{ snapshot_filenames[(user_choice.user_input | int) - 1] }}"
+
+- name: Confirm the selected snapshot configuration
+  ansible.builtin.debug:
+    msg: "Selected snapshot verified: [ {{ selected_snapshot_file }} ]. Ready to initialize restoration."
+

@@ -1,0 +1,3 @@
+VLAN_ID,Network_Name,Tenant,App_Profile,VRF_Name,BD_Routing_Disabled,VMware_VMM_Bound,Nutanix_VMM_Bound,Physical_Bound
+210,Web_dmz,Tenant_Tenant_DMZ,AP_Web_Stack,VRF_dmz_Web,Yes,Yes,Yes,Yes
+220,DB_dmz,Tenant_Tenant_DMZ,AP_Database_Cluster,VRF_dmz_Data,Yes,Yes,No,Yes

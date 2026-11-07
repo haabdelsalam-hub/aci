@@ -1,0 +1,5 @@
+---
+delete_aps_list:
+  - "AP_CrossPlatform_Migration"
+  - "AP_Web_Stack"
+

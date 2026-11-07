@@ -1,0 +1,92 @@
+---
+- name: Domain Base - Create Global VMware VMM Domains if missing
+  cisco.aci.aci_domain:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    domain: "{{ item }}"
+    domain_type: vmm
+    vm_provider: vmware            # Fixed parameter name (added underscore)
+    state: present
+  loop: "{{ vlan_migration_list | map(attribute='vmware_domains') | flatten | unique | list }}"
+  when: vlan_migration_list | map(attribute='vmware_domains') | flatten | length > 0
+
+- name: Domain Base - Create Global Nutanix VMM Domains if missing
+  cisco.aci.aci_domain:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    domain: "{{ item }}"
+    domain_type: vmm
+    vm_provider: nutanix           # Fixed parameter name (added underscore)
+    state: present
+  loop: "{{ vlan_migration_list | map(attribute='nutanix_domains') | flatten | unique | list }}"
+  when: vlan_migration_list | map(attribute='nutanix_domains') | flatten | length > 0
+
+- name: Domain Base - Create Global Physical Domains if missing
+  cisco.aci.aci_domain:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    domain: "{{ item }}"
+    domain_type: phys
+    state: present
+  loop: "{{ vlan_migration_list | map(attribute='physical_domains') | flatten | unique | list }}"
+  when: vlan_migration_list | map(attribute='physical_domains') | flatten | length > 0
+
+# ... keep your 3 existing domain creation tasks at the top exactly as they are ...
+
+- name: Domain Base - Wait for VMware VMM Domains to register in APIC database
+  cisco.aci.aci_rest:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    path: "/api/node/mo/uni/vmmp-VMware/dom-{{ item }}.json"
+    method: get
+  register: vmware_check
+  until: vmware_check.imdata | length > 0
+  retries: 6
+  delay: 2
+  loop: "{{ vlan_migration_list | map(attribute='vmware_domains') | flatten | unique | list }}"
+  when: vlan_migration_list | map(attribute='vmware_domains') | flatten | length > 0
+
+- name: Domain Base - Wait for Nutanix VMM Domains to register in APIC database
+  cisco.aci.aci_rest:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    path: "/api/node/mo/uni/vmmp-Nutanix/dom-{{ item }}.json"
+    method: get
+  register: nutanix_check
+  until: nutanix_check.imdata | length > 0
+  retries: 6
+  delay: 2
+  loop: "{{ vlan_migration_list | map(attribute='nutanix_domains') | flatten | unique | list }}"
+  when: vlan_migration_list | map(attribute='nutanix_domains') | flatten | length > 0
+
+- name: Domain Base - Wait for Physical Domains to register in APIC database
+  cisco.aci.aci_rest:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    path: "/api/node/mo/uni/phys-{{ item }}.json"
+    method: get
+  register: phys_check
+  until: phys_check.imdata | length > 0
+  retries: 6
+  delay: 2
+  loop: "{{ vlan_migration_list | map(attribute='physical_domains') | flatten | unique | list }}"
+  when: vlan_migration_list | map(attribute='physical_domains') | flatten | length > 0
+

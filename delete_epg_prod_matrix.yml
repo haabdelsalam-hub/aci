@@ -1,0 +1,5 @@
+---
+delete_epgs_list:
+  - { ap_name: "AP_Web_Stack", vlan_id: 10 }
+  - { ap_name: "AP_Database_Cluster", vlan_id: 20 }
+

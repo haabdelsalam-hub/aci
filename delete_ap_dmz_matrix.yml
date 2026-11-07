@@ -1,0 +1,3 @@
+---
+delete_aps_list: [] # Empty because we don't want to delete DMZ Application Profiles yet
+
