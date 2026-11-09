@@ -1,0 +1,5 @@
+vlan_id,name,ap_name,vrf_name,vmware_domains,nutanix_domains,physical_domains
+10,"Web_Prod","AP_Web_Stack","VRF_Prod",["vCenter_Cluster_C_VMM","vCenter_Cluster_A_VMM"],["Prsimdddd"],[]
+20,"App_Prod",AP_App_Stack,"VRF_Prod",["vCenter_Cluster_A_VMM"],["test1","test555"],["test"]
+30,"App_Prod",AP_DB_Stack,"VRF_Prod",["vCenter_Cluster_B_VMM"],["Prismmmmm"],["test","test2"]
+

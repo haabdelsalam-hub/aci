@@ -1,0 +1,32 @@
+- vlan_id: 10
+  name: Web_Prod
+  ap_name: AP_Web_Stack
+  vrf_name: VRF_Prod
+  vmware_domains:
+  - vCenter_Cluster_C_VMM
+  - vCenter_Cluster_A_VMM
+  nutanix_domains:
+  - Prsimdddd
+  physical_domains: []
+- vlan_id: 20
+  name: App_Prod
+  ap_name: AP_App_Stack
+  vrf_name: VRF_Prod
+  vmware_domains:
+  - vCenter_Cluster_A_VMM
+  nutanix_domains:
+  - test1
+  - test555
+  physical_domains:
+  - test
+- vlan_id: 30
+  name: App_Prod
+  ap_name: AP_DB_Stack
+  vrf_name: VRF_Prod
+  vmware_domains:
+  - vCenter_Cluster_B_VMM
+  nutanix_domains:
+  - Prismmmmm
+  physical_domains:
+  - test
+  - test2
