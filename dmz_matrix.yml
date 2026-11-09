@@ -1,10 +1,10 @@
 tenant_name: Tenant_Tenant_DMZ
 vlan_migration_list:
-- epg_name: 210
+- epg_name: HRdmz
   encap_id: 210
-  name: Web_dmz
+  name: HuamanResources-HR
   ap_name: AP_Web_Stack
-  vrf_name: VRF_dmz_Web
+  vrf_name: VRF_dmz
   vmware_domains:
   - vCenter_Cluster_A_VMM
   - vCenter_Cluster_B_VMM
@@ -15,7 +15,7 @@ vlan_migration_list:
   static_bindings:
   - enabled: true
     encap_id: 210
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
     pod_id: 1
@@ -27,7 +27,7 @@ vlan_migration_list:
     state: present
   - enabled: true
     encap_id: 210
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
     pod_id: 1
@@ -39,7 +39,7 @@ vlan_migration_list:
     state: present
   - enabled: true
     encap_id: 210
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
     pod_id: 1
@@ -51,7 +51,7 @@ vlan_migration_list:
     state: present
   - enabled: true
     encap_id: 210
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
     pod_id: 1
@@ -63,7 +63,7 @@ vlan_migration_list:
     state: present
   - enabled: true
     encap_id: 210
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
     pod_id: 1
@@ -75,7 +75,7 @@ vlan_migration_list:
     state: present
   - enabled: true
     encap_id: 210
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
     pod_id: 1
@@ -85,11 +85,11 @@ vlan_migration_list:
     interface: Server06_VPC
     description: Server 6 trunk on eth1/6 of both leaves
     state: present
-- epg_name: 220
+- epg_name: EPG-FINdmz
   encap_id: 220
   name: DB_dmz
   ap_name: AP_Database_Cluster
-  vrf_name: VRF_dmz_Data
+  vrf_name: VRF_dmz
   vmware_domains:
   - vCenter_Cluster_C_VMM
   nutanix_domains: []
@@ -98,7 +98,7 @@ vlan_migration_list:
   static_bindings:
   - enabled: true
     encap_id: 220
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
     pod_id: 1
@@ -110,7 +110,7 @@ vlan_migration_list:
     state: present
   - enabled: true
     encap_id: 220
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
     pod_id: 1
@@ -122,7 +122,7 @@ vlan_migration_list:
     state: present
   - enabled: true
     encap_id: 220
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
     pod_id: 1
@@ -134,7 +134,7 @@ vlan_migration_list:
     state: present
   - enabled: true
     encap_id: 220
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
     pod_id: 1
@@ -146,7 +146,7 @@ vlan_migration_list:
     state: present
   - enabled: true
     encap_id: 220
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
     pod_id: 1
@@ -158,7 +158,7 @@ vlan_migration_list:
     state: present
   - enabled: true
     encap_id: 220
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
     pod_id: 1
@@ -168,11 +168,11 @@ vlan_migration_list:
     interface: Server06_VPC
     description: Server 6 trunk on eth1/6 of both leaves
     state: present
-- epg_name: 230
+- epg_name: EPG-XYZdmz
   encap_id: 230
   name: BareMetal_VPC_Access_DMZ
   ap_name: AP_Web_Stack
-  vrf_name: VRF_dmz_Web
+  vrf_name: VRF_dmz
   vmware_domains: []
   nutanix_domains: []
   physical_domains:
@@ -180,7 +180,7 @@ vlan_migration_list:
   static_bindings:
   - enabled: true
     encap_id: 230
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: access
     interface_type: vpc
     pod_id: 1
@@ -190,11 +190,11 @@ vlan_migration_list:
     interface: BareMetal_DMZ_VPC_Port12
     description: DMZ bare metal access VLAN; eth1/12 on leaves 101 and 102
     state: present
-- epg_name: 240
+- epg_name: EPG-abcDMZ
   encap_id: 240
   name: BareMetal_SinglePort_DMZ
   ap_name: AP_Web_Stack
-  vrf_name: VRF_dmz_Web
+  vrf_name: VRF_dmz
   vmware_domains: []
   nutanix_domains: []
   physical_domains:
@@ -202,7 +202,7 @@ vlan_migration_list:
   static_bindings:
   - enabled: true
     encap_id: 240
-    deploy_immediacy: lazy
+    deploy_immediacy: immediate
     interface_mode: access
     interface_type: switch_port
     pod_id: 1

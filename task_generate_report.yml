@@ -1,29 +1,64 @@
 ---
-- name: Report - Initialize tenant CSV report
-  ansible.builtin.copy:
-    content: "EPG_ID,Encap_ID,Network_Name,Tenant,App_Profile,VRF_Name,BD_Routing_Disabled,VMware_VMM_Bound,Nutanix_VMM_Bound,Physical_Bound,Static_Path_Bound\n"
-    dest: "./aci_report_{{ tenant_name }}.csv"
-    mode: '0644'
-
-- name: Report - Query EPG domain and static path attachments
+- name: Report - Query all EPGs in the live tenant configuration
   cisco.aci.aci_rest:
     host: "{{ apic_login.host }}"
     username: "{{ apic_login.username }}"
     password: "{{ apic_login.password }}"
     use_ssl: "{{ apic_login.use_ssl }}"
     validate_certs: "{{ apic_login.validate_certs }}"
-    path: "/api/node/mo/uni/tn-{{ tenant_name }}/ap-{{ item.ap_name }}/epg-EPG-{{ item.epg_name }}.json?query-target=children"
+    path: "/api/node/mo/uni/tn-{{ tenant_name }}.json?query-target=subtree&target-subtree-class=fvAEPg&rsp-subtree=full"
     method: get
-  register: epg_attachment_status
-  loop: "{{ vlan_migration_list }}"
-  loop_control:
-    label: "EPG-{{ item.epg_name }}"
+  register: live_epgs
 
-- name: Report - Append EPG status to CSV
-  ansible.builtin.lineinfile:
-    path: "./aci_report_{{ tenant_name }}.csv"
-    line: >-
-      EPG-{{ item.item.epg_name }},{{ item.item.encap_id }},{{ item.item.name }},{{ tenant_name }},{{ item.item.ap_name }},{{ item.item.vrf_name }},Yes,{{ 'Yes' if 'vmmp-VMware' in item.imdata | string else 'No' }},{{ 'Yes' if 'vmmp-Nutanix' in item.imdata | string else 'No' }},{{ 'Yes' if 'phys-' in item.imdata | string else 'No' }},{{ 'Yes' if 'fvRsPathAtt' in item.imdata | string else 'No' }}
-  loop: "{{ epg_attachment_status.results }}"
-  loop_control:
-    label: "EPG-{{ item.item.epg_name }}"
+- name: Report - Query bridge domains in the live tenant configuration
+  cisco.aci.aci_rest:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    path: "/api/node/mo/uni/tn-{{ tenant_name }}.json?query-target=subtree&target-subtree-class=fvBD&rsp-subtree=full"
+    method: get
+  register: live_bridge_domains
+
+- name: Report - Write tenant CSV from live APIC objects
+  ansible.builtin.copy:
+    dest: "./aci_report_{{ tenant_name }}.csv"
+    mode: '0644'
+    content: |
+      EPG_Name,Encap_IDs,Tenant,App_Profile,Bridge_Domain,VRF_Name,BD_Routing_Disabled,VMware_VMM_Bound,Nutanix_VMM_Bound,Physical_Bound,Static_Path_Bound,Static_Paths
+      {% for epg_entry in live_epgs.imdata | default([]) %}
+      {% set epg = epg_entry.fvAEPg %}
+      {% set epg_attrs = epg.attributes %}
+      {% set epg_children = epg.children | default([]) %}
+      {% set path_bindings = epg_children | selectattr('fvRsPathAtt', 'defined') | map(attribute='fvRsPathAtt.attributes') | list %}
+      {% set domain_bindings = epg_children | selectattr('fvRsDomAtt', 'defined') | map(attribute='fvRsDomAtt.attributes') | list %}
+      {% set domain_paths = domain_bindings | map(attribute='tDn') | join(' ') %}
+      {% set path_details = namespace(values=[]) %}
+      {% for binding in path_bindings %}
+      {% set _ = path_details.values.append(binding.tDn ~ ' [' ~ binding.encap ~ ']') %}
+      {% endfor %}
+      {% set bd_ref = namespace(dn='', name='') %}
+      {% for child in epg_children %}
+      {% if child.fvRsBd is defined %}
+      {% set bd_ref.dn = child.fvRsBd.attributes.tDn | default('') %}
+      {% set bd_ref.name = child.fvRsBd.attributes.tnFvBD | default(bd_ref.dn.split('/')[-1] | regex_replace('^BD-', '')) %}
+      {% endif %}
+      {% endfor %}
+      {% set bd_match = namespace(object={}) %}
+      {% for bd_entry in live_bridge_domains.imdata | default([]) %}
+      {% if bd_entry.fvBD is defined and (bd_entry.fvBD.attributes.name == bd_ref.name or bd_entry.fvBD.attributes.dn == bd_ref.dn) %}
+      {% set bd_match.object = bd_entry.fvBD %}
+      {% endif %}
+      {% endfor %}
+      {% set bd_attrs = bd_match.object.attributes | default({}) %}
+      {% set bd_children = bd_match.object.children | default([]) %}
+      {% set vrf_ref = namespace(dn='', name='') %}
+      {% for child in bd_children %}
+      {% if child.fvRsCtx is defined %}
+      {% set vrf_ref.dn = child.fvRsCtx.attributes.tnFvCtx | default(child.fvRsCtx.attributes.tDn | default('')) %}
+      {% set vrf_ref.name = child.fvRsCtx.attributes.tnFvCtx | default(vrf_ref.dn.split('/')[-1] | regex_replace('^ctx-', '')) %}
+      {% endif %}
+      {% endfor %}
+      "{{ epg_attrs.name | default('') | replace('"', '""') }}","{{ path_bindings | map(attribute='encap') | join(';') | replace('"', '""') }}","{{ tenant_name | replace('"', '""') }}","{{ epg_attrs.dn.split('/')[2] | default('') | regex_replace('^ap-', '') | replace('"', '""') }}","{{ bd_attrs.name | default(bd_ref.name) | replace('"', '""') }}","{{ vrf_ref.name | replace('"', '""') }}","{{ 'Yes' if bd_attrs.unicastRoute | default('') == 'no' else ('No' if bd_attrs.unicastRoute | default('') == 'yes' else 'Unknown') }}","{{ 'Yes' if 'vmmp-VMware' in domain_paths else 'No' }}","{{ 'Yes' if 'vmmp-Nutanix' in domain_paths else 'No' }}","{{ 'Yes' if 'phys-' in domain_paths else 'No' }}","{{ 'Yes' if path_bindings | length > 0 else 'No' }}","{{ path_details.values | join('; ') | replace('"', '""') }}"
+      {% endfor %}
