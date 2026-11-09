@@ -1,0 +1,28 @@
+---
+- name: Configure shared static server access infrastructure
+  hosts: apic1
+  gather_facts: false
+  connection: local
+
+  vars_prompt:
+    - name: apic_pass
+      prompt: "Enter your APIC admin password"
+      private: true
+
+  vars_files:
+    - static_access_matrix.yml
+
+  vars:
+    apic_login:
+      host: "{{ ansible_host }}"
+      username: admin
+      password: "{{ apic_pass }}"
+      use_ssl: true
+      validate_certs: false
+
+  tasks:
+    - name: Create a safety snapshot before configuring access infrastructure
+      ansible.builtin.import_tasks: task_create_snapshot.yml
+
+    - name: Configure shared VLAN, domain, AEP, profile, policy group, and port selector dependencies
+      ansible.builtin.import_tasks: task_configure_static_access_ports.yml

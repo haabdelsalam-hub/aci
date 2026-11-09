@@ -1,3 +1,5 @@
 ---
-delete_aps_list: [] # Empty because we don't want to delete DMZ Application Profiles yet
+delete_aps_list:
+  - "AP_Web_Stack"
+  - "AP_Database_Cluster"
 

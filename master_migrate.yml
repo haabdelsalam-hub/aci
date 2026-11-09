@@ -10,7 +10,8 @@
       private: yes
 
   vars_files:
-    - "{{ matrix_file | default('vlan_matrix.yml') }}"
+    - static_access_matrix.yml
+    - "{{ matrix_file | default('prod_matrix.yml') }}"
 
   vars:
     apic_login:
@@ -45,6 +46,10 @@
     - name: Deploy Physical Bare-Metal Domain Bindings
       ansible.builtin.import_tasks: task_bind_physical.yml
       tags: [physical]
+
+    - name: Deploy Static Physical Port Bindings
+      ansible.builtin.import_tasks: task_bind_static_ports.yml
+      tags: [static]
 
 
  # ----------------------------------------------------

@@ -2,4 +2,5 @@
 delete_epgs_list:
   - { ap_name: "AP_Web_Stack", epg_name: 10 }
   - { ap_name: "AP_Database_Cluster", epg_name: 20 }
-
+  - { ap_name: "AP_Web_Stack", epg_name: 30 }
+  - { ap_name: "AP_Web_Stack", epg_name: 40 }

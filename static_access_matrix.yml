@@ -1,0 +1,165 @@
+---
+# Fabric-wide access configuration. Run configure_static_access_ports.sh once
+# before the production or DMZ EPG binding wrappers.
+static_aep: "Ansible_Static_AEP"
+static_physical_domains:
+  - "BareMetal_Rack1_PhysDom"
+  - "Oracle_Exadata_PhysDom"
+
+static_vlan_pool:
+  name: "Ansible_Static_Port_VLANs"
+  pool_allocation_mode: static
+  description: "Static VLANs used by Ansible-managed bare-metal EPGs"
+  encap_blocks:
+    - block_name: "Tenant_VLANs_10_40"
+      block_start: 10
+      block_end: 40
+      allocation_mode: static
+    - block_name: "Tenant_VLANs_210_240"
+      block_start: 210
+      block_end: 240
+      allocation_mode: static
+
+static_interface_policy_defaults:
+  link_level_policy: "system-link-level-10G-auto"
+  cdp_policy: "system-cdp-enabled"
+  lldp_policy: "system-lldp-enabled"
+  port_channel_policy: "system-lacp-active"
+
+static_leaf_profiles:
+  - node_id: 101
+    switch_profile: "Ansible_Static_Leaf101_Switch_Profile"
+    leaf_selector: "Ansible_Static_Leaf101_Selector"
+    node_block: "Ansible_Static_Leaf101_Block"
+    interface_profile: "Ansible_Static_Leaf101_Interface_Profile"
+  - node_id: 102
+    switch_profile: "Ansible_Static_Leaf102_Switch_Profile"
+    leaf_selector: "Ansible_Static_Leaf102_Selector"
+    node_block: "Ansible_Static_Leaf102_Block"
+    interface_profile: "Ansible_Static_Leaf102_Interface_Profile"
+
+# Each vPC path uses one policy group and a matching selector on each leaf.
+static_vpc_trunks:
+  - interface: "Server01_VPC"
+    access_port_selector: "Server01_VPC"
+    port_blk: "Server01_PortBlock"
+    port_id: 8
+    member_ports: ["leaf101:1/8", "leaf102:1/8"]
+    pod_id: 1
+    leafs: ["101", "102"]
+    interface_type: vpc
+    interface_mode: trunk
+    deploy_immediacy: lazy
+    description: "Server 1 trunk on eth1/8 of both leaves"
+    state: present
+  - interface: "Server02_VPC"
+    access_port_selector: "Server02_VPC"
+    port_blk: "Server02_PortBlock"
+    port_id: 9
+    member_ports: ["leaf101:1/9", "leaf102:1/9"]
+    pod_id: 1
+    leafs: ["101", "102"]
+    interface_type: vpc
+    interface_mode: trunk
+    deploy_immediacy: lazy
+    description: "Server 2 trunk on eth1/9 of both leaves"
+    state: present
+  - interface: "Server03_VPC"
+    access_port_selector: "Server03_VPC"
+    port_blk: "Server03_PortBlock"
+    port_id: 3
+    member_ports: ["leaf101:1/3", "leaf102:1/3"]
+    pod_id: 1
+    leafs: ["101", "102"]
+    interface_type: vpc
+    interface_mode: trunk
+    deploy_immediacy: lazy
+    description: "Server 3 trunk on eth1/3 of both leaves"
+    state: present
+  - interface: "Server04_VPC"
+    access_port_selector: "Server04_VPC"
+    port_blk: "Server04_PortBlock"
+    port_id: 4
+    member_ports: ["leaf101:1/4", "leaf102:1/4"]
+    pod_id: 1
+    leafs: ["101", "102"]
+    interface_type: vpc
+    interface_mode: trunk
+    deploy_immediacy: lazy
+    description: "Server 4 trunk on eth1/4 of both leaves"
+    state: present
+  - interface: "Server05_VPC"
+    access_port_selector: "Server05_VPC"
+    port_blk: "Server05_PortBlock"
+    port_id: 5
+    member_ports: ["leaf101:1/5", "leaf102:1/5"]
+    pod_id: 1
+    leafs: ["101", "102"]
+    interface_type: vpc
+    interface_mode: trunk
+    deploy_immediacy: lazy
+    description: "Server 5 trunk on eth1/5 of both leaves"
+    state: present
+  - interface: "Server06_VPC"
+    access_port_selector: "Server06_VPC"
+    port_blk: "Server06_PortBlock"
+    port_id: 6
+    member_ports: ["leaf101:1/6", "leaf102:1/6"]
+    pod_id: 1
+    leafs: ["101", "102"]
+    interface_type: vpc
+    interface_mode: trunk
+    deploy_immediacy: lazy
+    description: "Server 6 trunk on eth1/6 of both leaves"
+    state: present
+
+static_vpc_access_ports:
+  - interface: "BareMetal_VPC_Port10"
+    access_port_selector: "BareMetal_VPC_Port10"
+    port_blk: "BareMetal_VPC_Port10_Block"
+    port_id: 10
+    member_ports: ["leaf101:1/10", "leaf102:1/10"]
+    pod_id: 1
+    leafs: ["101", "102"]
+    interface_type: vpc
+    interface_mode: access
+    deploy_immediacy: lazy
+    description: "Bare-metal access vPC on eth1/10 of both leaves"
+    state: present
+  - interface: "BareMetal_DMZ_VPC_Port12"
+    access_port_selector: "BareMetal_DMZ_VPC_Port12"
+    port_blk: "BareMetal_DMZ_VPC_Port12_Block"
+    port_id: 12
+    member_ports: ["leaf101:1/12", "leaf102:1/12"]
+    pod_id: 1
+    leafs: ["101", "102"]
+    interface_type: vpc
+    interface_mode: access
+    deploy_immediacy: lazy
+    description: "DMZ bare-metal access vPC on eth1/12 of both leaves"
+    state: present
+
+static_single_access_policy_group: "BareMetal_SinglePort_Access"
+static_single_access_ports:
+  - interface_profile: "Ansible_Static_Leaf101_Interface_Profile"
+    access_port_selector: "BareMetal_SinglePort_Leaf101"
+    port_blk: "BareMetal_SinglePort_Leaf101_Block"
+    from_card: 1
+    from_port: 11
+    to_card: 1
+    to_port: 11
+    leaf: "101"
+    policy_group: "BareMetal_SinglePort_Access"
+    interface_type: switch_port
+    state: present
+  - interface_profile: "Ansible_Static_Leaf101_Interface_Profile"
+    access_port_selector: "BareMetal_DMZ_SinglePort_Leaf101"
+    port_blk: "BareMetal_DMZ_SinglePort_Leaf101_Block"
+    from_card: 1
+    from_port: 13
+    to_card: 1
+    to_port: 13
+    leaf: "101"
+    policy_group: "BareMetal_SinglePort_Access"
+    interface_type: switch_port
+    state: present

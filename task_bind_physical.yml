@@ -13,6 +13,10 @@
     domain_type: phys                   # Specifies Physical Domain infrastructure mapping
     state: present
   loop: "{{ vlan_migration_list | subelements('physical_domains', skip_missing=True) }}"
+  register: physical_domain_binding_result
+  retries: 3
+  delay: 3
+  until: physical_domain_binding_result is succeeded
   loop_control:
     label: "Tenant: {{ tenant_name }} -> EPG-{{ item.0.epg_name }} bound to PhysDom: {{ item.1 }}"
 

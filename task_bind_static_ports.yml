@@ -1,0 +1,31 @@
+---
+- name: Static - Bind each EPG to its explicit physical paths
+  cisco.aci.aci_static_binding_to_epg:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    tenant: "{{ tenant_name }}"
+    ap: "{{ item.0.ap_name }}"
+    epg: "EPG-{{ item.0.epg_name }}"
+    encap_id: "{{ item.1.encap_id }}"
+    deploy_immediacy: "{{ item.1.deploy_immediacy }}"
+    interface_mode: "{{ item.1.interface_mode }}"
+    interface_type: "{{ item.1.interface_type }}"
+    pod_id: "{{ item.1.pod_id }}"
+    leafs: "{{ item.1.leafs }}"
+    interface: "{{ item.1.interface }}"
+    extpaths: "{{ item.1.extpaths | default(omit) }}"
+    description: "{{ item.1.description | default(omit) }}"
+    state: "{{ item.1.state }}"
+  loop: "{{ vlan_migration_list | subelements('static_bindings') }}"
+  register: epg_static_binding_result
+  retries: 3
+  delay: 3
+  until: epg_static_binding_result is succeeded
+  loop_control:
+    label: >-
+      {{ tenant_name }} / EPG-{{ item.0.epg_name }} / pod {{ item.1.pod_id }}
+      / leaf {{ item.1.leafs }} / {{ item.1.interface }}
+  when: item.1.enabled | default(true) | bool

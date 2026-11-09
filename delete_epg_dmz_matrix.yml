@@ -1,4 +1,7 @@
 ---
 delete_epgs_list:
-  - { ap_name: "AP_Web_DMZ", epg_name: 10 }
+  - { ap_name: "AP_Web_Stack", epg_name: 210 }
+  - { ap_name: "AP_Database_Cluster", epg_name: 220 }
+  - { ap_name: "AP_Web_Stack", epg_name: 230 }
+  - { ap_name: "AP_Web_Stack", epg_name: 240 }
 

@@ -1,0 +1,222 @@
+---
+- name: Infrastructure - Ensure physical domains exist
+  cisco.aci.aci_domain:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    domain: "{{ item }}"
+    domain_type: phys
+    state: present
+  loop: "{{ static_physical_domains }}"
+
+- name: Infrastructure - Create static VLAN pool
+  cisco.aci.aci_vlan_pool:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    pool: "{{ static_vlan_pool.name }}"
+    pool_allocation_mode: "{{ static_vlan_pool.pool_allocation_mode }}"
+    description: "{{ static_vlan_pool.description }}"
+    state: present
+
+- name: Infrastructure - Create static VLAN pool ranges
+  cisco.aci.aci_vlan_pool_encap_block:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    pool: "{{ static_vlan_pool.name }}"
+    pool_allocation_mode: "{{ static_vlan_pool.pool_allocation_mode }}"
+    block_name: "{{ item.block_name }}"
+    block_start: "{{ item.block_start }}"
+    block_end: "{{ item.block_end }}"
+    allocation_mode: "{{ item.allocation_mode }}"
+    state: present
+  loop: "{{ static_vlan_pool.encap_blocks }}"
+  loop_control:
+    label: "{{ item.block_name }} ({{ item.block_start }}-{{ item.block_end }})"
+
+- name: Infrastructure - Bind VLAN pool to physical domains
+  cisco.aci.aci_domain_to_vlan_pool:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    domain: "{{ item }}"
+    domain_type: phys
+    pool: "{{ static_vlan_pool.name }}"
+    pool_allocation_mode: "{{ static_vlan_pool.pool_allocation_mode }}"
+    state: present
+  loop: "{{ static_physical_domains }}"
+
+- name: Infrastructure - Create attachable entity profile
+  cisco.aci.aci_aep:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    aep: "{{ static_aep }}"
+    description: "Ansible-managed static server access"
+    state: present
+
+- name: Infrastructure - Bind AEP to physical domains
+  cisco.aci.aci_aep_to_domain:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    aep: "{{ static_aep }}"
+    domain: "{{ item }}"
+    domain_type: phys
+    state: present
+  loop: "{{ static_physical_domains }}"
+
+- name: Interface policy - Create vPC policy groups
+  cisco.aci.aci_interface_policy_leaf_policy_group:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    policy_group: "{{ item.interface }}"
+    lag_type: node
+    aep: "{{ static_aep }}"
+    link_level_policy: "{{ static_interface_policy_defaults.link_level_policy }}"
+    cdp_policy: "{{ static_interface_policy_defaults.cdp_policy }}"
+    lldp_policy: "{{ static_interface_policy_defaults.lldp_policy }}"
+    port_channel_policy: "{{ static_interface_policy_defaults.port_channel_policy }}"
+    description: "{{ item.description }}"
+    state: "{{ item.state }}"
+  loop: "{{ static_vpc_trunks + static_vpc_access_ports }}"
+  loop_control:
+    label: "{{ item.interface }}"
+
+- name: Interface policy - Create single-port leaf policy group
+  cisco.aci.aci_interface_policy_leaf_policy_group:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    policy_group: "{{ static_single_access_policy_group }}"
+    lag_type: leaf
+    aep: "{{ static_aep }}"
+    link_level_policy: "{{ static_interface_policy_defaults.link_level_policy }}"
+    cdp_policy: "{{ static_interface_policy_defaults.cdp_policy }}"
+    lldp_policy: "{{ static_interface_policy_defaults.lldp_policy }}"
+    description: "Single-port bare-metal access"
+    state: present
+
+- name: Leaf access - Create switch policy leaf profiles
+  cisco.aci.aci_switch_policy_leaf_profile:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    leaf_profile: "{{ item.switch_profile }}"
+    description: "Ansible-managed access profile for leaf {{ item.node_id }}"
+    state: present
+  loop: "{{ static_leaf_profiles }}"
+  loop_control:
+    label: "{{ item.switch_profile }}"
+
+- name: Leaf access - Select leaf node in switch profile
+  cisco.aci.aci_switch_leaf_selector:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    leaf_profile: "{{ item.switch_profile }}"
+    leaf: "{{ item.leaf_selector }}"
+    leaf_node_blk: "{{ item.node_block }}"
+    description: "Leaf {{ item.node_id }}"
+    from: "{{ item.node_id }}"
+    to: "{{ item.node_id }}"
+    state: present
+  loop: "{{ static_leaf_profiles }}"
+  loop_control:
+    label: "{{ item.switch_profile }} / node {{ item.node_id }}"
+
+- name: Leaf access - Create interface profiles
+  cisco.aci.aci_interface_policy_leaf_profile:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    interface_profile: "{{ item.interface_profile }}"
+    description: "Ansible-managed ports for leaf {{ item.node_id }}"
+    state: present
+  loop: "{{ static_leaf_profiles }}"
+  loop_control:
+    label: "{{ item.interface_profile }}"
+
+- name: Leaf access - Attach interface profiles to switch profiles
+  cisco.aci.aci_interface_selector_to_switch_policy_leaf_profile:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    leaf_profile: "{{ item.switch_profile }}"
+    interface_selector: "{{ item.interface_profile }}"
+    state: present
+  loop: "{{ static_leaf_profiles }}"
+  loop_control:
+    label: "{{ item.switch_profile }} / {{ item.interface_profile }}"
+
+- name: Leaf access - Create vPC port selectors on each leaf
+  cisco.aci.aci_access_port_to_interface_policy_leaf_profile:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    interface_profile: "{{ item.1.interface_profile }}"
+    access_port_selector: "{{ item.0.access_port_selector }}"
+    port_blk: "{{ item.0.port_blk }}"
+    from_card: 1
+    from_port: "{{ item.0.port_id }}"
+    to_card: 1
+    to_port: "{{ item.0.port_id }}"
+    policy_group: "{{ item.0.interface }}"
+    interface_type: vpc
+    state: "{{ item.0.state }}"
+  loop: "{{ (static_vpc_trunks + static_vpc_access_ports) | product(static_leaf_profiles) | list }}"
+  register: access_selector_result
+  retries: 3
+  delay: 3
+  until: access_selector_result is succeeded
+  loop_control:
+    label: "{{ item.0.access_port_selector }} / leaf {{ item.1.node_id }} / port {{ item.0.port_id }}"
+
+- name: Leaf access - Create single physical port selector
+  cisco.aci.aci_access_port_to_interface_policy_leaf_profile:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    interface_profile: "{{ item.interface_profile }}"
+    access_port_selector: "{{ item.access_port_selector }}"
+    port_blk: "{{ item.port_blk }}"
+    from_card: "{{ item.from_card }}"
+    from_port: "{{ item.from_port }}"
+    to_card: "{{ item.to_card }}"
+    to_port: "{{ item.to_port }}"
+    policy_group: "{{ item.policy_group }}"
+    interface_type: "{{ item.interface_type }}"
+    state: "{{ item.state }}"
+  loop: "{{ static_single_access_ports }}"
+  loop_control:
+    label: "{{ item.access_port_selector }} / leaf {{ item.leaf }} / port {{ item.from_port }}"
