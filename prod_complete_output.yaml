@@ -1,0 +1,212 @@
+tenant_name: Tenant_Production
+vlan_migration_list:
+- epg_name: 10
+  encap_id: 10
+  name: Web_Prod
+  ap_name: AP_Web_Stack
+  vrf_name: VRF_Prod_Web
+  vmware_domains:
+  - vCenter_Cluster_A_VMM
+  - vCenter_Cluster_B_VMM
+  nutanix_domains:
+  - PrismCentral_Zone1_VMM
+  physical_domains:
+  - BareMetal_Rack1_PhysDom
+  static_bindings:
+  - enabled: true
+    encap_id: 10
+    deploy_immediacy: lazy
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server01_VPC
+    description: Server 1 trunk on eth1/8 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 10
+    deploy_immediacy: lazy
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server02_VPC
+    description: Server 2 trunk on eth1/9 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 10
+    deploy_immediacy: lazy
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server03_VPC
+    description: Server 3 trunk on eth1/3 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 10
+    deploy_immediacy: lazy
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server04_VPC
+    description: Server 4 trunk on eth1/4 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 10
+    deploy_immediacy: lazy
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server05_VPC
+    description: Server 5 trunk on eth1/5 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 10
+    deploy_immediacy: lazy
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server06_VPC
+    description: Server 6 trunk on eth1/6 of both leaves
+    state: present
+- epg_name: 20
+  encap_id: 20
+  name: DB_Prod
+  ap_name: AP_Database_Cluster
+  vrf_name: VRF_Prod_Data
+  vmware_domains:
+  - vCenter_Cluster_C_VMM
+  nutanix_domains: []
+  physical_domains:
+  - Oracle_Exadata_PhysDom
+  static_bindings:
+  - enabled: true
+    encap_id: 20
+    deploy_immediacy: lazy
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server01_VPC
+    description: Server 1 trunk on eth1/8 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 20
+    deploy_immediacy: lazy
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server02_VPC
+    description: Server 2 trunk on eth1/9 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 20
+    deploy_immediacy: lazy
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server03_VPC
+    description: Server 3 trunk on eth1/3 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 20
+    deploy_immediacy: lazy
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server04_VPC
+    description: Server 4 trunk on eth1/4 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 20
+    deploy_immediacy: lazy
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server05_VPC
+    description: Server 5 trunk on eth1/5 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 20
+    deploy_immediacy: lazy
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server06_VPC
+    description: Server 6 trunk on eth1/6 of both leaves
+    state: present
+- epg_name: 30
+  encap_id: 30
+  name: BareMetal_VPC_Access_Prod
+  ap_name: AP_Web_Stack
+  vrf_name: VRF_Prod_Web
+  vmware_domains: []
+  nutanix_domains: []
+  physical_domains:
+  - BareMetal_Rack1_PhysDom
+  static_bindings:
+  - enabled: true
+    encap_id: 30
+    deploy_immediacy: lazy
+    interface_mode: access
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: BareMetal_VPC_Port10
+    description: Bare metal access VLAN; eth1/10 on leaves 101 and 102
+    state: present
+- epg_name: 40
+  encap_id: 40
+  name: BareMetal_SinglePort_Prod
+  ap_name: AP_Web_Stack
+  vrf_name: VRF_Prod_Web
+  vmware_domains: []
+  nutanix_domains: []
+  physical_domains:
+  - BareMetal_Rack1_PhysDom
+  static_bindings:
+  - enabled: true
+    encap_id: 40
+    deploy_immediacy: lazy
+    interface_mode: access
+    interface_type: switch_port
+    pod_id: 1
+    leafs: '101'
+    interface: 1/11
+    description: Bare metal access VLAN; single port eth1/11 on leaf 101
+    state: present

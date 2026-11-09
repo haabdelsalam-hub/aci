@@ -114,6 +114,7 @@
     lldp_policy: "{{ static_interface_policy_defaults.lldp_policy }}"
     description: "Single-port bare-metal access"
     state: present
+  when: static_single_access_ports | length > 0
 
 - name: Leaf access - Create switch policy leaf profiles
   cisco.aci.aci_switch_policy_leaf_profile:
@@ -220,3 +221,41 @@
   loop: "{{ static_single_access_ports }}"
   loop_control:
     label: "{{ item.access_port_selector }} / leaf {{ item.leaf }} / port {{ item.from_port }}"
+
+- name: Interface policy - Create groups for per-port interface configuration
+  cisco.aci.aci_interface_policy_leaf_policy_group:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    policy_group: "{{ item.policy_group }}"
+    lag_type: "{{ item.lag_type }}"
+    aep: "{{ item.aep }}"
+    link_level_policy: "{{ item.link_level_policy }}"
+    cdp_policy: "{{ item.cdp_policy }}"
+    lldp_policy: "{{ item.lldp_policy }}"
+    port_channel_policy: "{{ item.port_channel_policy }}"
+    description: "{{ item.description }}"
+    state: "{{ item.state }}"
+  loop: "{{ static_interface_policy_groups | default([]) }}"
+  loop_control:
+    label: "{{ item.lag_type }} / {{ item.policy_group }}"
+
+- name: Leaf access - Configure ports with the per-port interface model
+  cisco.aci.aci_interface_config:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    node: "{{ item.node }}"
+    interface: "{{ item.interface }}"
+    interface_type: "{{ item.interface_type }}"
+    role: "{{ item.role }}"
+    policy_group: "{{ item.policy_group }}"
+    description: "{{ item.description }}"
+    state: "{{ item.state }}"
+  loop: "{{ static_interface_configs | default([]) }}"
+  loop_control:
+    label: "leaf {{ item.node }} / {{ item.interface }} / {{ item.policy_group }}"

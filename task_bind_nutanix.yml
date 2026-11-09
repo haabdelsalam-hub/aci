@@ -8,7 +8,7 @@
     validate_certs: "{{ apic_login.validate_certs }}"
     tenant: "{{ tenant_name }}"
     ap: "{{ item.0.ap_name }}"
-    epg: "EPG-{{ item.0.epg_name }}"
+    epg: "{{ item.0.epg_object_name | default('EPG-' ~ item.0.epg_name) }}"
     domain: "Nutanix-{{ item.1 }}"       # <--- FIX: Prepends the implicit APIC provider name string
     domain_type: vmm
     vm_provider: nutanix
@@ -16,5 +16,5 @@
     state: present
   loop: "{{ vlan_migration_list | subelements('nutanix_domains', skip_missing=True) }}"
   loop_control:
-    label: "Nutanix Link -> {{ tenant_name }} -> EPG-{{ item.0.epg_name }} to VMM: Nutanix-{{ item.1 }}"
+    label: "Nutanix Link -> {{ tenant_name }} -> {{ item.0.epg_object_name | default('EPG-' ~ item.0.epg_name) }} to VMM: Nutanix-{{ item.1 }}"
 

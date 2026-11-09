@@ -8,7 +8,7 @@
     validate_certs: "{{ apic_login.validate_certs }}"
     tenant: "{{ tenant_name }}"
     ap: "{{ item.0.ap_name }}"
-    epg: "EPG-{{ item.0.epg_name }}"
+    epg: "{{ item.0.epg_object_name | default('EPG-' ~ item.0.epg_name) }}"
     encap_id: "{{ item.1.encap_id }}"
     deploy_immediacy: "{{ item.1.deploy_immediacy }}"
     interface_mode: "{{ item.1.interface_mode }}"
@@ -26,6 +26,6 @@
   until: epg_static_binding_result is succeeded
   loop_control:
     label: >-
-      {{ tenant_name }} / EPG-{{ item.0.epg_name }} / pod {{ item.1.pod_id }}
+      {{ tenant_name }} / {{ item.0.epg_object_name | default('EPG-' ~ item.0.epg_name) }} / pod {{ item.1.pod_id }}
       / leaf {{ item.1.leafs }} / {{ item.1.interface }}
   when: item.1.enabled | default(true) | bool

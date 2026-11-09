@@ -30,7 +30,7 @@
     use_ssl: "{{ apic_login.use_ssl }}"
     validate_certs: "{{ apic_login.validate_certs }}"
     tenant: "{{ tenant_name }}"
-    bd: "BD-{{ item.epg_name }}"
+    bd: "{{ item.bd_name | default('BD-' ~ item.epg_name) }}"
     vrf: "{{ item.vrf_name }}"
     enable_routing: no
     l2_unknown_unicast: flood
@@ -38,7 +38,7 @@
     state: present
   loop: "{{ vlan_migration_list }}"
   loop_control:
-    label: "BD-{{ item.epg_name }} -> VRF: {{ item.vrf_name }}"
+    label: "{{ item.bd_name | default('BD-' ~ item.epg_name) }} -> VRF: {{ item.vrf_name }}"
 
 - name: Core - Ensure Application Profiles Exist (De-duplicated)
   cisco.aci.aci_ap:
@@ -61,10 +61,10 @@
     validate_certs: "{{ apic_login.validate_certs }}"
     tenant: "{{ tenant_name }}"
     ap: "{{ item.ap_name }}"
-    epg: "EPG-{{ item.epg_name }}"
-    bd: "BD-{{ item.epg_name }}"
+    epg: "{{ item.epg_object_name | default('EPG-' ~ item.epg_name) }}"
+    bd: "{{ item.bd_name | default('BD-' ~ item.epg_name) }}"
     state: present
   loop: "{{ vlan_migration_list }}"
   loop_control:
-    label: "Tenant: {{ tenant_name }} -> AP: {{ item.ap_name }} -> EPG-{{ item.epg_name }}"
+    label: "Tenant: {{ tenant_name }} -> AP: {{ item.ap_name }} -> {{ item.epg_object_name | default('EPG-' ~ item.epg_name) }}"
 

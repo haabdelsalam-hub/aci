@@ -10,7 +10,7 @@
       private: true
 
   vars_files:
-    - static_access_matrix.yml
+    - "{{ static_access_matrix_file | default('static_access_matrix.yml') }}"
 
   vars:
     apic_login:

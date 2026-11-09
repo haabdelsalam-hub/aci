@@ -1,0 +1,2 @@
+tenant_name,epg_name,encap_id,name,ap_name,vrf_name,vmware_domains,nutanix_domains,physical_domains,static_bindings
+Tenant_Tenant_DMZ,210,210,Web_dmz,AP_Web_Stack,VRF_dmz_Web,"[""vCenter_Cluster_A_VMM""]",[],"[""BareMetal_Rack1_PhysDom""]","[{""enabled"":true,""encap_id"":210,""deploy_immediacy"":""immediate"",""interface_mode"":""trunk"",""interface_type"":""vpc"",""pod_id"":1,""leafs"":[""101"",""102""],""interface"":""Server01_VPC"",""description"":""DMZ web server vPC"",""state"":""present""}]"

@@ -10,7 +10,7 @@
       private: yes
 
   vars_files:
-    - static_access_matrix.yml
+    - "{{ static_access_matrix_file | default('static_access_matrix.yml') }}"
     - "{{ matrix_file | default('prod_matrix.yml') }}"
 
   vars:

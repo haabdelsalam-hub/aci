@@ -1,5 +1,0 @@
-EPG_ID,Encap_ID,Network_Name,Tenant,App_Profile,VRF_Name,BD_Routing_Disabled,VMware_VMM_Bound,Nutanix_VMM_Bound,Physical_Bound,Static_Path_Bound
-EPG-210,210,Web_dmz,Tenant_Tenant_DMZ,AP_Web_Stack,VRF_dmz_Web,Yes,Yes,Yes,Yes,Yes
-EPG-220,220,DB_dmz,Tenant_Tenant_DMZ,AP_Database_Cluster,VRF_dmz_Data,Yes,Yes,No,Yes,Yes
-EPG-230,230,BareMetal_VPC_Access_DMZ,Tenant_Tenant_DMZ,AP_Web_Stack,VRF_dmz_Web,Yes,No,No,Yes,Yes
-EPG-240,240,BareMetal_SinglePort_DMZ,Tenant_Tenant_DMZ,AP_Web_Stack,VRF_dmz_Web,Yes,No,No,Yes,Yes

@@ -1,0 +1,2 @@
+tenant_name,epg_name,encap_id,name,ap_name,vrf_name,vmware_domains,nutanix_domains,physical_domains,static_bindings
+Tenant_Production,10,10,Web_Prod,AP_Web_Stack,VRF_Prod_Web,"[""vCenter_Cluster_A_VMM""]",[],"[""BareMetal_Rack1_PhysDom""]","[{""enabled"":true,""encap_id"":10,""deploy_immediacy"":""immediate"",""interface_mode"":""trunk"",""interface_type"":""vpc"",""pod_id"":1,""leafs"":[""101"",""102""],""interface"":""Server01_VPC"",""description"":""Production web server vPC"",""state"":""present""}]"
