@@ -12,19 +12,19 @@
     password: "{{ apic_login.password }}"
     use_ssl: "{{ apic_login.use_ssl }}"
     validate_certs: "{{ apic_login.validate_certs }}"
-    path: "/api/node/mo/uni/tn-{{ tenant_name }}/ap-{{ item.ap_name }}/epg-EPG_VLAN_{{ item.vlan_id }}.json?query-target=children&target-subtree-class=fvRsDomAtt"
+    path: "/api/node/mo/uni/tn-{{ tenant_name }}/ap-{{ item.ap_name }}/epg-EPG-{{ item.epg_name }}.json?query-target=children&target-subtree-class=fvRsDomAtt"
     method: get
   register: epg_domain_status
   loop: "{{ vlan_migration_list }}"
   loop_control:
-    label: "Verifying EPG_VLAN_{{ item.vlan_id }}"
+    label: "Verifying EPG-{{ item.epg_name }}"
 
 - name: Report - Parse and Append Status Data to CSV
   ansible.builtin.lineinfile:
     path: "./aci_report_{{ tenant_name }}.csv" # <-- Appends to the tenant-specific file
     line: >-
-      {{ item.item.vlan_id }},{{ item.item.name }},{{ tenant_name }},{{ item.item.ap_name }},{{ item.item.vrf_name }},Yes,{{ 'Yes' if 'vmmp-VMware' in item.imdata | string else 'No' }},{{ 'Yes' if 'vmmp-Nutanix' in item.imdata | string else 'No' }},{{ 'Yes' if 'phys-' in item.imdata | string else 'No' }}
+      {{ item.item.epg_name }},{{ item.item.name }},{{ tenant_name }},{{ item.item.ap_name }},{{ item.item.vrf_name }},Yes,{{ 'Yes' if 'vmmp-VMware' in item.imdata | string else 'No' }},{{ 'Yes' if 'vmmp-Nutanix' in item.imdata | string else 'No' }},{{ 'Yes' if 'phys-' in item.imdata | string else 'No' }}
   loop: "{{ epg_domain_status.results }}"
   loop_control:
-    label: "Logging status for VLAN {{ item.item.vlan_id }}"
+    label: "Logging status for VLAN {{ item.item.epg_name }}"
 

@@ -11,10 +11,10 @@
     use_ssl: "{{ apic_login.use_ssl }}"
     validate_certs: "{{ apic_login.validate_certs }}"
     tenant: "{{ tenant_name }}"
-    bd: "BD_VLAN_{{ item }}"
+    bd: "BD-{{ item }}"
     state: absent
   loop: "{{ delete_bds_list | default([]) }}"
   loop_control:
-    label: "Tenant: {{ tenant_name }} -> Deleting BD: BD_VLAN_{{ item }}"
+    label: "Tenant: {{ tenant_name }} -> Deleting BD: BD-{{ item }}"
   when: delete_bds_list is defined and delete_bds_list | length > 0
 

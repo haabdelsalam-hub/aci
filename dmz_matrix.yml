@@ -2,7 +2,7 @@
 tenant_name: "Tenant_Tenant_DMZ"
 vlan_migration_list:
 
-  - vlan_id: 210
+  - epg_name: 210
     name: "Web_dmz"
     ap_name: "AP_Web_Stack"
     vrf_name: "VRF_dmz_Web"
@@ -15,7 +15,7 @@ vlan_migration_list:
     physical_domains:
       - "BareMetal_Rack1_PhysDom"
 
-  - vlan_id: 220
+  - epg_name: 220
     name: "DB_dmz"
     ap_name: "AP_Database_Cluster"
     vrf_name: "VRF_dmz_Data"

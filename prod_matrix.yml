@@ -2,7 +2,7 @@
 tenant_name: "Tenant_Production"
 
 vlan_migration_list:
-  - vlan_id: 10
+  - epg_name: 10
     name: "Web_Prod"
     ap_name: "AP_Web_Stack"
     vrf_name: "VRF_Prod_Web"
@@ -15,7 +15,7 @@ vlan_migration_list:
     physical_domains:
       - "BareMetal_Rack1_PhysDom"
 
-  - vlan_id: 20
+  - epg_name: 20
     name: "DB_Prod"
     ap_name: "AP_Database_Cluster"
     vrf_name: "VRF_Prod_Data"
