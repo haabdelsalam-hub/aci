@@ -1,18 +1,22 @@
 tenant_name: Tenant_Production
+bridge_domains:
+- bd_name: Web_Prod
+  vrf_name: VRF_Prod_Web
+  enable_routing: false
+  l2_unknown_unicast: flood
+  arp_flooding: true
 vlan_migration_list:
-- epg_name: 10
-  encap_id: 10
-  name: Web_Prod
+- epg_name: Web_Prod
   ap_name: AP_Web_Stack
   vrf_name: VRF_Prod_Web
+  bd_name: Web_Prod
   vmware_domains:
   - vCenter_Cluster_A_VMM
   nutanix_domains: []
   physical_domains:
   - BareMetal_Rack1_PhysDom
   static_bindings:
-  - enabled: true
-    encap_id: 10
+  - encap_id: 10
     deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc

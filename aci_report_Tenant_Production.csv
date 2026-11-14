@@ -1,0 +1,5 @@
+EPG_ID,Encap_ID,Network_Name,Tenant,App_Profile,VRF_Name,BD_Routing_Disabled,VMware_VMM_Bound,Nutanix_VMM_Bound,Physical_Bound,Static_Path_Bound
+EPG-10,10,Web_Prod,Tenant_Production,AP_Web_Stack,VRF_Prod_Web,Yes,Yes,Yes,Yes,Yes
+EPG-20,20,DB_Prod,Tenant_Production,AP_Database_Cluster,VRF_Prod_Data,Yes,Yes,No,Yes,Yes
+EPG-30,30,BareMetal_VPC_Access_Prod,Tenant_Production,AP_Web_Stack,VRF_Prod_Web,Yes,No,No,Yes,Yes
+EPG-40,40,BareMetal_SinglePort_Prod,Tenant_Production,AP_Web_Stack,VRF_Prod_Web,Yes,No,No,Yes,Yes

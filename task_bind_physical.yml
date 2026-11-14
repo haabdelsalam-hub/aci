@@ -8,7 +8,7 @@
     validate_certs: "{{ apic_login.validate_certs }}"
     tenant: "{{ tenant_name }}"
     ap: "{{ item.0.ap_name }}"
-    epg: "{{ item.0.epg_object_name | default('EPG-' ~ item.0.epg_name) }}"
+    epg: "{{ item.0.epg_name }}"
     domain: "{{ item.1 }}"              # Dynamically picks up the bare-metal / switch domain name
     domain_type: phys                   # Specifies Physical Domain infrastructure mapping
     state: present
@@ -18,5 +18,5 @@
   delay: 3
   until: physical_domain_binding_result is succeeded
   loop_control:
-    label: "Tenant: {{ tenant_name }} -> {{ item.0.epg_object_name | default('EPG-' ~ item.0.epg_name) }} bound to PhysDom: {{ item.1 }}"
+    label: "Tenant: {{ tenant_name }} -> {{ item.0.epg_name }} bound to PhysDom: {{ item.1 }}"
 

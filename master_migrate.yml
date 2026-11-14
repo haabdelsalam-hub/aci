@@ -12,6 +12,7 @@
   vars_files:
     - "{{ static_access_matrix_file | default('static_access_matrix.yml') }}"
     - "{{ matrix_file | default('prod_matrix.yml') }}"
+    - "{{ static_binding_profiles_file | default('static_binding_profiles.yml') }}"
 
   vars:
     apic_login:

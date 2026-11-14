@@ -1,6 +1,9 @@
----
 delete_epgs_list:
-  - { ap_name: "AP_Web_Stack", epg_name: 10 }
-  - { ap_name: "AP_Database_Cluster", epg_name: 20 }
-  - { ap_name: "AP_Web_Stack", epg_name: 30 }
-  - { ap_name: "AP_Web_Stack", epg_name: 40 }
+- ap_name: AP_Web_Stack
+  epg_name: Web_Prod
+- ap_name: AP_Database_Cluster
+  epg_name: DB_Prod
+- ap_name: AP_Web_Stack
+  epg_name: BareMetal_VPC_Access_Prod
+- ap_name: AP_Web_Stack
+  epg_name: BareMetal_SinglePort_Prod

@@ -1,7 +1,9 @@
----
 delete_epgs_list:
-  - { ap_name: "AP_Web_Stack", epg_name: 210 }
-  - { ap_name: "AP_Database_Cluster", epg_name: 220 }
-  - { ap_name: "AP_Web_Stack", epg_name: 230 }
-  - { ap_name: "AP_Web_Stack", epg_name: 240 }
-
+- ap_name: AP_Web_Stack
+  epg_name: Web_dmz
+- ap_name: AP_Database_Cluster
+  epg_name: DB_dmz
+- ap_name: AP_Web_Stack
+  epg_name: BareMetal_VPC_Access_DMZ
+- ap_name: AP_Web_Stack
+  epg_name: BareMetal_SinglePort_DMZ

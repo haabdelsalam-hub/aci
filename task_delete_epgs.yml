@@ -12,10 +12,10 @@
     validate_certs: "{{ apic_login.validate_certs }}"
     tenant: "{{ tenant_name }}"
     ap: "{{ item.ap_name }}"
-    epg: "EPG-{{ item.epg_name }}"
+    epg: "{{ item.epg_name }}"
     state: absent
   loop: "{{ delete_epgs_list | default([]) }}"
   loop_control:
-    label: "Tenant: {{ tenant_name }} -> AP: {{ item.ap_name }} -> Deleting EPG-{{ item.epg_name }}"
+    label: "Tenant: {{ tenant_name }} -> AP: {{ item.ap_name }} -> Deleting {{ item.epg_name }}"
   when: delete_epgs_list is defined and delete_epgs_list | length > 0
 

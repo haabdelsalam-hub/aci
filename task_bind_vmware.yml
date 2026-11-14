@@ -8,12 +8,12 @@
     validate_certs: "{{ apic_login.validate_certs }}"
     tenant: "{{ tenant_name }}"
     ap: "{{ item.0.ap_name }}"
-    epg: "{{ item.0.epg_object_name | default('EPG-' ~ item.0.epg_name) }}"
-    domain: "VMware-{{ item.1 }}"        # <--- FIX: Prepends the implicit APIC provider name string
+    epg: "{{ item.0.epg_name }}"
+    domain: "{{ item.1 }}"        # <--- FIX: Prepends the implicit APIC provider name string
     domain_type: vmm
     vm_provider: vmware
     state: present
   loop: "{{ vlan_migration_list | subelements('vmware_domains', skip_missing=True) }}"
   loop_control:
-    label: "VMware Link -> {{ tenant_name }} -> {{ item.0.epg_object_name | default('EPG-' ~ item.0.epg_name) }} to VMM: VMware-{{ item.1 }}"
+    label: "VMware Link -> {{ tenant_name }} -> {{ item.0.epg_name }} to VMM: {{ item.1 }}"
 

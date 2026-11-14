@@ -1,0 +1,229 @@
+tenant_name: Tenant_Tenant_DMZ
+bridge_domains:
+- bd_name: BD-210
+  vrf_name: VRF_dmz_Web
+  enable_routing: false
+  l2_unknown_unicast: flood
+  arp_flooding: true
+- bd_name: BD-220
+  vrf_name: VRF_dmz_Data
+  enable_routing: false
+  l2_unknown_unicast: flood
+  arp_flooding: true
+- bd_name: BD-230
+  vrf_name: VRF_dmz_Web
+  enable_routing: false
+  l2_unknown_unicast: flood
+  arp_flooding: true
+- bd_name: BD-240
+  vrf_name: VRF_dmz_Web
+  enable_routing: false
+  l2_unknown_unicast: flood
+  arp_flooding: true
+vlan_migration_list:
+- epg_name: Web_dmz
+  bd_name: BD-210
+  ap_name: AP_Web_Stack
+  vrf_name: VRF_dmz_Web
+  vmware_domains:
+  - vCenter_Cluster_A_VMM
+  - vCenter_Cluster_B_VMM
+  nutanix_domains:
+  - PrismCentral_Zone1_VMM
+  physical_domains:
+  - BareMetal_Rack1_PhysDom
+  static_bindings:
+  - enabled: true
+    encap_id: 210
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server01_VPC
+    description: Server 1 trunk on eth1/8 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 210
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server02_VPC
+    description: Server 2 trunk on eth1/9 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 210
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server03_VPC
+    description: Server 3 trunk on eth1/3 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 210
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server04_VPC
+    description: Server 4 trunk on eth1/4 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 210
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server05_VPC
+    description: Server 5 trunk on eth1/5 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 210
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server06_VPC
+    description: Server 6 trunk on eth1/6 of both leaves
+    state: present
+- epg_name: DB_dmz
+  bd_name: BD-220
+  ap_name: AP_Database_Cluster
+  vrf_name: VRF_dmz_Data
+  vmware_domains:
+  - vCenter_Cluster_C_VMM
+  nutanix_domains: []
+  physical_domains:
+  - Oracle_Exadata_PhysDom
+  static_bindings:
+  - enabled: true
+    encap_id: 220
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server01_VPC
+    description: Server 1 trunk on eth1/8 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 220
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server02_VPC
+    description: Server 2 trunk on eth1/9 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 220
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server03_VPC
+    description: Server 3 trunk on eth1/3 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 220
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server04_VPC
+    description: Server 4 trunk on eth1/4 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 220
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server05_VPC
+    description: Server 5 trunk on eth1/5 of both leaves
+    state: present
+  - enabled: true
+    encap_id: 220
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: Server06_VPC
+    description: Server 6 trunk on eth1/6 of both leaves
+    state: present
+- epg_name: BareMetal_VPC_Access_DMZ
+  bd_name: BD-230
+  ap_name: AP_Web_Stack
+  vrf_name: VRF_dmz_Web
+  vmware_domains: []
+  nutanix_domains: []
+  physical_domains:
+  - BareMetal_Rack1_PhysDom
+  static_bindings:
+  - enabled: true
+    encap_id: 230
+    deploy_immediacy: immediate
+    interface_mode: access
+    interface_type: vpc
+    pod_id: 1
+    leafs:
+    - '101'
+    - '102'
+    interface: BareMetal_DMZ_VPC_Port12
+    description: DMZ bare metal access VLAN; eth1/12 on leaves 101 and 102
+    state: present
+- epg_name: BareMetal_SinglePort_DMZ
+  bd_name: BD-240
+  ap_name: AP_Web_Stack
+  vrf_name: VRF_dmz_Web
+  vmware_domains: []
+  nutanix_domains: []
+  physical_domains:
+  - BareMetal_Rack1_PhysDom
+  static_bindings:
+  - enabled: true
+    encap_id: 240
+    deploy_immediacy: immediate
+    interface_mode: access
+    interface_type: switch_port
+    pod_id: 1
+    leafs: '101'
+    interface: 1/13
+    description: DMZ bare metal access VLAN; single port eth1/13 on leaf 101
+    state: present

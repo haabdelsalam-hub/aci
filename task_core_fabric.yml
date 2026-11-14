@@ -7,7 +7,6 @@
     use_ssl: "{{ apic_login.use_ssl }}"
     validate_certs: "{{ apic_login.validate_certs }}"
     tenant: "{{ tenant_name }}"
-    description: "Multi-Tenant Migration Managed via Ansible Matrix"
     state: present
 
 - name: Core - Ensure the Target VRFs Exist (De-duplicated)
@@ -22,7 +21,34 @@
     state: present
   loop: "{{ vlan_migration_list | map(attribute='vrf_name') | unique | list }}"
 
-- name: Core - Build L2-Optimized Bridge Domains
+- name: Core - Validate that EPGs sharing a bridge domain use one VRF
+  ansible.builtin.assert:
+    that:
+      - (vlan_migration_list | selectattr('bd_name', 'equalto', item) | map(attribute='vrf_name') | unique | list | length) == 1
+    fail_msg: "EPGs sharing bridge domain {{ item }} specify different VRFs."
+  loop: "{{ vlan_migration_list | selectattr('bd_name', 'defined') | map(attribute='bd_name') | unique | list }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Core - Validate bridge-domain definitions are unique
+  ansible.builtin.assert:
+    that:
+      - bridge_domains | map(attribute='bd_name') | list | length == bridge_domains | map(attribute='bd_name') | unique | list | length
+    fail_msg: "bridge_domains must contain exactly one definition per bd_name."
+  when: bridge_domains is defined
+
+- name: Core - Validate EPG bridge-domain references and VRFs
+  ansible.builtin.assert:
+    that:
+      - item.bd_name in (bridge_domains | map(attribute='bd_name') | list)
+      - item.vrf_name == (bridge_domains | selectattr('bd_name', 'equalto', item.bd_name) | map(attribute='vrf_name') | first)
+    fail_msg: "EPG {{ item.epg_name }} must reference a defined bridge domain with the same VRF."
+  loop: "{{ vlan_migration_list }}"
+  loop_control:
+    label: "{{ item.epg_name }}"
+  when: bridge_domains is defined
+
+- name: Core - Build Bridge Domains from matrix definitions
   cisco.aci.aci_bd:
     host: "{{ apic_login.host }}"
     username: "{{ apic_login.username }}"
@@ -30,15 +56,15 @@
     use_ssl: "{{ apic_login.use_ssl }}"
     validate_certs: "{{ apic_login.validate_certs }}"
     tenant: "{{ tenant_name }}"
-    bd: "{{ item.bd_name | default('BD-' ~ item.epg_name) }}"
+    bd: "{{ item.bd_name }}"
     vrf: "{{ item.vrf_name }}"
-    enable_routing: no
-    l2_unknown_unicast: flood
-    arp_flooding: yes
+    enable_routing: "{{ item.enable_routing | default(false, true) }}"
+    l2_unknown_unicast: "{{ item.l2_unknown_unicast | default('flood', true) }}"
+    arp_flooding: "{{ item.arp_flooding | default(true, true) }}"
     state: present
-  loop: "{{ vlan_migration_list }}"
+  loop: "{{ bridge_domains | default(vlan_migration_list | unique(attribute='bd_name') | list, true) }}"
   loop_control:
-    label: "{{ item.bd_name | default('BD-' ~ item.epg_name) }} -> VRF: {{ item.vrf_name }}"
+    label: "{{ item.bd_name }} -> VRF: {{ item.vrf_name }}"
 
 - name: Core - Ensure Application Profiles Exist (De-duplicated)
   cisco.aci.aci_ap:
@@ -61,10 +87,10 @@
     validate_certs: "{{ apic_login.validate_certs }}"
     tenant: "{{ tenant_name }}"
     ap: "{{ item.ap_name }}"
-    epg: "{{ item.epg_object_name | default('EPG-' ~ item.epg_name) }}"
-    bd: "{{ item.bd_name | default('BD-' ~ item.epg_name) }}"
+    epg: "{{ item.epg_name }}"
+    bd: "{{ item.bd_name }}"
     state: present
   loop: "{{ vlan_migration_list }}"
   loop_control:
-    label: "Tenant: {{ tenant_name }} -> AP: {{ item.ap_name }} -> {{ item.epg_object_name | default('EPG-' ~ item.epg_name) }}"
+    label: "Tenant: {{ tenant_name }} -> AP: {{ item.ap_name }} -> {{ item.epg_name }}"
 

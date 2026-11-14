@@ -1,4 +1,16 @@
 ---
+- name: Static - Validate referenced binding profiles
+  ansible.builtin.assert:
+    that:
+      - item.static_binding_encap_id is defined
+      - item.static_binding_profiles | difference(static_binding_profiles.keys() | list) | length == 0
+    fail_msg: >-
+      EPG {{ item.epg_name }} must define static_binding_encap_id and reference
+      only profiles present in static_binding_profiles.yml.
+  loop: "{{ vlan_migration_list | selectattr('static_binding_profiles', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.epg_name }}"
+
 - name: Static - Bind each EPG to its explicit physical paths
   cisco.aci.aci_static_binding_to_epg:
     host: "{{ apic_login.host }}"
@@ -8,7 +20,7 @@
     validate_certs: "{{ apic_login.validate_certs }}"
     tenant: "{{ tenant_name }}"
     ap: "{{ item.0.ap_name }}"
-    epg: "{{ item.0.epg_object_name | default('EPG-' ~ item.0.epg_name) }}"
+    epg: "{{ item.0.epg_name }}"
     encap_id: "{{ item.1.encap_id }}"
     deploy_immediacy: "{{ item.1.deploy_immediacy }}"
     interface_mode: "{{ item.1.interface_mode }}"
@@ -19,13 +31,27 @@
     extpaths: "{{ item.1.extpaths | default(omit) }}"
     description: "{{ item.1.description | default(omit) }}"
     state: "{{ item.1.state }}"
-  loop: "{{ vlan_migration_list | subelements('static_bindings') }}"
+  loop: "{{ vlan_migration_list | subelements('static_bindings', skip_missing=True) }}"
   register: epg_static_binding_result
   retries: 3
   delay: 3
   until: epg_static_binding_result is succeeded
   loop_control:
     label: >-
-      {{ tenant_name }} / {{ item.0.epg_object_name | default('EPG-' ~ item.0.epg_name) }} / pod {{ item.1.pod_id }}
+      {{ tenant_name }} / {{ item.0.epg_name }} / pod {{ item.1.pod_id }}
       / leaf {{ item.1.leafs }} / {{ item.1.interface }}
-  when: item.1.enabled | default(true) | bool
+
+- name: Static - Bind each EPG to paths from shared profiles
+  ansible.builtin.include_tasks:
+    file: task_bind_static_profile.yml
+    apply:
+      tags: [static]
+  loop: "{{ vlan_migration_list | subelements('static_binding_profiles', skip_missing=True) }}"
+  tags: [static]
+  loop_control:
+    loop_var: epg_profile
+    label: "{{ epg_profile.0.epg_name }} -> {{ epg_profile.1 }}"
+  vars:
+    profile_epg: "{{ epg_profile.0 }}"
+    profile_bindings: "{{ static_binding_profiles[epg_profile.1] }}"
+    profile_encap_id: "{{ epg_profile.0.static_binding_encap_id }}"

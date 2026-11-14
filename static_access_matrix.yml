@@ -1,13 +1,13 @@
 ---
 # Fabric-wide access configuration. Run configure_static_access_ports.sh once
 # before the production or DMZ EPG binding wrappers.
-static_aep: "Ansible_MY_AEP"
+static_aep: "Ansible_Static_AEP"
 static_physical_domains:
   - "BareMetal_Rack1_PhysDom"
   - "Oracle_Exadata_PhysDom"
 
 static_vlan_pool:
-  name: "Ansible_MYStatic_Port_VLANs"
+  name: "Ansible_Static_Port_VLANs"
   pool_allocation_mode: static
   description: "Static VLANs used by Ansible-managed bare-metal EPGs"
   encap_blocks:

@@ -1,0 +1,31 @@
+---
+- name: Static - Apply every path in the referenced binding profile
+  cisco.aci.aci_static_binding_to_epg:
+    host: "{{ apic_login.host }}"
+    username: "{{ apic_login.username }}"
+    password: "{{ apic_login.password }}"
+    use_ssl: "{{ apic_login.use_ssl }}"
+    validate_certs: "{{ apic_login.validate_certs }}"
+    tenant: "{{ tenant_name }}"
+    ap: "{{ profile_epg.ap_name }}"
+    epg: "{{ profile_epg.epg_name }}"
+    encap_id: "{{ profile_binding.encap_id | default(profile_encap_id) }}"
+    deploy_immediacy: "{{ profile_binding.deploy_immediacy }}"
+    interface_mode: "{{ profile_binding.interface_mode }}"
+    interface_type: "{{ profile_binding.interface_type }}"
+    pod_id: "{{ profile_binding.pod_id }}"
+    leafs: "{{ profile_binding.leafs }}"
+    interface: "{{ profile_binding.interface }}"
+    extpaths: "{{ profile_binding.extpaths | default(omit) }}"
+    description: "{{ profile_binding.description | default(omit) }}"
+    state: "{{ profile_binding.state | default('present') }}"
+  loop: "{{ profile_bindings }}"
+  register: profile_static_binding_result
+  retries: 3
+  delay: 3
+  until: profile_static_binding_result is succeeded
+  loop_control:
+    loop_var: profile_binding
+    label: >-
+      {{ tenant_name }} / {{ profile_epg.epg_name }} / pod {{ profile_binding.pod_id }}
+      / leaf {{ profile_binding.leafs }} / {{ profile_binding.interface }}

@@ -2,10 +2,10 @@
 """Read APIC configuration and export timestamped, re-push-oriented matrices.
 
 This exporter only performs APIC GET requests. It uses the tenant names in the
-existing prod_matrix.yml and dmz_matrix.yml as selectors, then discovers every
-EPG, domain association, and static path binding currently present in those
-tenants. Output files are created with exclusive-create semantics and are never
-overwritten.
+existing prod_matrix.yml and dmz_matrix.yml as selectors, skips tenants that
+are missing or have no EPGs, and discovers every EPG, domain association, and
+static path binding in the remaining tenants. Output files use exclusive-create
+semantics and are never overwritten.
 """
 
 from __future__ import annotations
@@ -68,6 +68,10 @@ def yaml_int(value: str | int) -> int:
     if not match:
         raise ValueError(f"Could not read a numeric VLAN/port value from {value!r}")
     return int(match.group(1))
+
+
+def apic_bool(value: object) -> bool:
+    return str(value).strip().lower() in {"yes", "true", "1", "enabled"}
 
 
 class Apic:
@@ -157,39 +161,6 @@ def read_tenant_name(path: Path) -> str:
     return str(tenant)
 
 
-def tenant_from_dn(dn: str) -> str:
-    parts = dn.split("/")
-    return parts[1][3:] if len(parts) > 1 and parts[1].startswith("tn-") else ""
-
-
-def choose_live_tenant(expected: str, role: str, epg_tenants: set[str], excluded: set[str]) -> str:
-    if expected in epg_tenants:
-        return expected
-    system_tenants = {"infra", "common", "mgmt"}
-    candidates = {
-        tenant for tenant in epg_tenants
-        if tenant not in system_tenants and tenant not in excluded
-    }
-    keyword_matches = {
-        tenant for tenant in candidates
-        if ("dmz" in tenant.lower() if role == "dmz" else any(token in tenant.lower() for token in ("prod", "production")))
-    }
-    if len(keyword_matches) == 1:
-        selected = next(iter(keyword_matches))
-    elif not keyword_matches and len(candidates) == 1:
-        selected = next(iter(candidates))
-    else:
-        raise ValueError(
-            f"Template tenant {expected!r} has no EPGs, and APIC does not have one unambiguous {role} tenant. "
-            f"Candidates with EPGs: {sorted(candidates)}"
-        )
-    print(
-        f"Using APIC tenant {selected!r} for {role}; template tenant {expected!r} has no EPGs.",
-        file=sys.stderr,
-    )
-    return selected
-
-
 def get_api_objects(records: list[dict], class_name: str) -> list[dict]:
     return [object_data(record, class_name) for record in records if class_name in record]
 
@@ -204,8 +175,75 @@ def get_policy_group_name(selector: dict) -> str:
     return named_dn_part(rel_target(ref, "infraRsAccBaseGrp"), "accbundle-") if refs else ""
 
 
-def profile_node_map(node_profiles: list[dict]) -> tuple[dict[int, dict], dict[str, set[int]]]:
-    by_node: dict[int, dict] = {}
+def policy_group_aep(group: dict) -> str:
+    names = {
+        named_dn_part(rel_target(rel, "infraRsAttEntP"), "attentp-")
+        for rel in class_children(group, "infraRsAttEntP")
+        if rel_target(rel, "infraRsAttEntP")
+    }
+    if len(names) != 1:
+        raise ValueError(
+            f"Policy group {attrs(group).get('name', '')!r} resolves to {len(names)} AEPs; "
+            f"expected one: {sorted(names)}"
+        )
+    return next(iter(names))
+
+
+def vlan_pool_records(domain_names: list[str], domains: list[dict], vlan_pools: list[dict]) -> list[dict]:
+    """Return each domain's single VLAN pool, preserving every configured range."""
+    domain_by_name = {str(attrs(domain).get("name", "")): domain for domain in domains}
+    pool_by_dn = {str(attrs(pool).get("dn", "")): pool for pool in vlan_pools}
+    pool_domains: dict[str, set[str]] = {}
+    for domain_name in domain_names:
+        domain = domain_by_name.get(domain_name)
+        if not domain:
+            raise ValueError(f"Could not find physical domain {domain_name!r}")
+        pool_dns = {
+            rel_target(rel, "infraRsVlanNs")
+            for rel in class_children(domain, "infraRsVlanNs")
+            if rel_target(rel, "infraRsVlanNs")
+        }
+        if len(pool_dns) != 1:
+            raise ValueError(
+                f"Physical domain {domain_name!r} references {len(pool_dns)} VLAN pools; "
+                f"expected one. APIC pools: {sorted(pool_dns)}"
+            )
+        pool_dn = next(iter(pool_dns))
+        if pool_dn not in pool_by_dn:
+            raise ValueError(f"Physical domain {domain_name!r} references VLAN pool {pool_dn!r}, which APIC did not return")
+        pool_domains.setdefault(pool_dn, set()).add(domain_name)
+
+    records = []
+    for pool_dn, assigned_domains in sorted(pool_domains.items()):
+        pool = pool_by_dn[pool_dn]
+        p_attrs = attrs(pool)
+        blocks = []
+        for block in class_children(pool, "fvnsEncapBlk"):
+            b_attrs = attrs(block)
+            block_start = yaml_int(b_attrs.get("from", ""))
+            block_end = yaml_int(b_attrs.get("to", ""))
+            allocation_mode = str(b_attrs.get("allocMode", p_attrs.get("allocMode", "static"))).lower()
+            block_name = str(b_attrs.get("name", "")).strip()
+            if not block_name:
+                block_name = f"VLANs_{block_start}_{block_end}_{allocation_mode}"
+            blocks.append({
+                "block_name": block_name,
+                "block_start": block_start,
+                "block_end": block_end,
+                "allocation_mode": allocation_mode,
+            })
+        records.append({
+            "name": str(p_attrs.get("name", "")),
+            "pool_allocation_mode": str(p_attrs.get("allocMode", "static")).lower(),
+            "description": str(p_attrs.get("descr", "")),
+            "encap_blocks": blocks,
+            "domains": sorted(assigned_domains),
+        })
+    return records
+
+
+def profile_node_map(node_profiles: list[dict]) -> tuple[dict[int, list[dict]], dict[str, set[int]]]:
+    by_node: dict[int, list[dict]] = {}
     profile_nodes: dict[str, set[int]] = {}
     for profile in node_profiles:
         p_attrs = attrs(profile)
@@ -239,16 +277,8 @@ def profile_node_map(node_profiles: list[dict]) -> tuple[dict[int, dict], dict[s
                         "block_from": first,
                         "block_to": last,
                     }
-                    if node_id in by_node and by_node[node_id] != data:
-                        previous = by_node[node_id]
-                        raise ValueError(
-                            f"Leaf {node_id} is selected more than once: "
-                            f"{previous['switch_profile']}/{previous['leaf_selector']} "
-                            f"(block {previous['node_block']}, interface profiles {sorted(previous['interface_profiles'])}) and "
-                            f"{data['switch_profile']}/{data['leaf_selector']} "
-                            f"(block {data['node_block']}, interface profiles {sorted(data['interface_profiles'])})"
-                        )
-                    by_node[node_id] = data
+                    if data not in by_node.setdefault(node_id, []):
+                        by_node[node_id].append(data)
                     for interface_profile in interface_profiles:
                         profile_nodes.setdefault(interface_profile, set()).add(node_id)
     return by_node, profile_nodes
@@ -322,10 +352,12 @@ def parse_static_path(binding: dict) -> dict:
         interface = endpoint
         leafs = node_ids[0]
     extpaths = [extpath] if extpath else None
+    interface_mode = str(b_attrs.get("mode", "regular")).lower()
+    interface_mode = {"regular": "trunk", "untagged": "access"}.get(interface_mode, interface_mode)
     return {
         "encap_id": parse_vlan(str(b_attrs.get("encap", ""))),
         "deploy_immediacy": str(b_attrs.get("instrImedcy", "lazy")).lower(),
-        "interface_mode": str(b_attrs.get("mode", "regular")).lower(),
+        "interface_mode": interface_mode,
         "interface_type": interface_type,
         "pod_id": int(pod),
         "leafs": leafs,
@@ -344,12 +376,11 @@ def tenant_matrix(tenant_name: str, epg_records: list[dict], bd_records: list[di
         if "fvBD" in row
     }
     epgs = []
+    bridge_domain_configs: dict[str, dict] = {}
     for record in epg_records:
         epg = object_data(record, "fvAEPg")
         e_attrs = attrs(epg)
         epg_name = str(e_attrs.get("name", ""))
-        epg_id_text = epg_name[4:] if epg_name.startswith("EPG-") else epg_name
-        epg_id: str | int = int(epg_id_text) if epg_id_text.isdigit() else epg_id_text
         dn_parts = str(e_attrs.get("dn", "")).split("/")
         if len(dn_parts) < 4 or not dn_parts[2].startswith("ap-"):
             raise ValueError(f"Cannot determine application profile from EPG DN {e_attrs.get('dn')!r}")
@@ -369,12 +400,27 @@ def tenant_matrix(tenant_name: str, epg_records: list[dict], bd_records: list[di
                     None,
                 )
             if matching_bd:
+                bd_attrs = attrs(matching_bd, "fvBD")
                 for ctx in class_children(object_data(matching_bd, "fvBD"), "fvRsCtx"):
                     ctx_attrs = attrs(ctx)
                     vrf_name = str(ctx_attrs.get("tnFvCtx", ""))
                     if not vrf_name:
                         vrf_name = named_dn_part(str(ctx_attrs.get("tDn", "")), "ctx-")
                     break
+                bd_config = {
+                    "bd_name": bd_name,
+                    "vrf_name": vrf_name,
+                    "enable_routing": apic_bool(bd_attrs.get("unicastRoute", "no")),
+                    "l2_unknown_unicast": str(bd_attrs.get("unkMacUcastAct", "proxy")).lower(),
+                    "arp_flooding": apic_bool(bd_attrs.get("arpFlood", "no")),
+                }
+                existing_config = bridge_domain_configs.get(bd_name)
+                if existing_config and existing_config != bd_config:
+                    raise ValueError(
+                        f"Bridge domain {bd_name!r} has conflicting APIC definitions: "
+                        f"{existing_config} and {bd_config}"
+                    )
+                bridge_domain_configs[bd_name] = bd_config
         if not bd_name or not vrf_name:
             raise ValueError(f"EPG {epg_name} has no readable bridge domain/VRF relation; cannot make a repush matrix")
 
@@ -394,17 +440,12 @@ def tenant_matrix(tenant_name: str, epg_records: list[dict], bd_records: list[di
             if parsed.get("extpaths") is None:
                 parsed.pop("extpaths")
             parsed.pop("_path_dn")
-            parsed.update({"enabled": True})
             bindings.append(parsed)
         bindings.sort(key=lambda b: (b["pod_id"], str(b["leafs"]), str(b["interface"]), b["encap_id"]))
-        encap_ids = sorted({binding["encap_id"] for binding in bindings})
         epgs.append(
             {
-                "epg_name": epg_id,
-                "epg_object_name": epg_name,
+                "epg_name": epg_name,
                 "bd_name": bd_name,
-                "encap_id": encap_ids[0] if encap_ids else None,
-                "name": epg_name,
                 "ap_name": ap_name,
                 "vrf_name": vrf_name,
                 "vmware_domains": sorted(domains["vmware"]),
@@ -414,17 +455,87 @@ def tenant_matrix(tenant_name: str, epg_records: list[dict], bd_records: list[di
             }
         )
     epgs.sort(key=lambda epg: str(epg["epg_name"]))
-    return {"tenant_name": tenant_name, "vlan_migration_list": epgs}
+    return {
+        "tenant_name": tenant_name,
+        "bridge_domains": [bridge_domain_configs[name] for name in sorted(bridge_domain_configs)],
+        "vlan_migration_list": epgs,
+    }
 
 
-def policy_values(group: dict) -> dict[str, str]:
+def binding_path_signature(binding: dict) -> tuple:
+    leafs = binding.get("leafs", [])
+    if isinstance(leafs, (list, tuple)):
+        leaf_signature = tuple(str(leaf) for leaf in leafs)
+    else:
+        leaf_signature = str(leafs)
+    extpaths = binding.get("extpaths") or []
+    if not isinstance(extpaths, (list, tuple)):
+        extpaths = [extpaths]
+    return (
+        str(binding.get("deploy_immediacy", "lazy")).lower(),
+        str(binding.get("interface_mode", "trunk")).lower(),
+        str(binding.get("interface_type", "")).lower(),
+        int(binding.get("pod_id", 1)),
+        leaf_signature,
+        str(binding.get("interface", "")),
+        tuple(str(path) for path in extpaths),
+        str(binding.get("description", "") or ""),
+        str(binding.get("state", "present")).lower(),
+    )
+
+
+def compact_static_bindings(matrix: dict, profiles: dict[str, list[dict]]) -> None:
+    """Replace exact reusable path sets with profile references in an exported matrix."""
+    for epg in matrix.get("vlan_migration_list", []):
+        bindings = epg.get("static_bindings", [])
+        encaps = {int(binding["encap_id"]) for binding in bindings if "encap_id" in binding}
+        if not bindings or len(encaps) != 1:
+            continue
+        default_encap = next(iter(encaps))
+        remaining = list(bindings)
+        matched_profiles = []
+        for profile_name, profile_bindings in profiles.items():
+            if not isinstance(profile_bindings, list) or not profile_bindings:
+                continue
+            matched_indexes = []
+            for profile_binding in profile_bindings:
+                if not isinstance(profile_binding, dict):
+                    matched_indexes = []
+                    break
+                profile_encap = int(profile_binding.get("encap_id", default_encap))
+                found = next(
+                    (
+                        index for index, binding in enumerate(remaining)
+                        if binding_path_signature(binding) == binding_path_signature(profile_binding)
+                        and int(binding["encap_id"]) == profile_encap
+                    ),
+                    None,
+                )
+                if found is None or found in matched_indexes:
+                    matched_indexes = []
+                    break
+                matched_indexes.append(found)
+            if matched_indexes:
+                for index in reversed(matched_indexes):
+                    remaining.pop(index)
+                matched_profiles.append(profile_name)
+        if matched_profiles:
+            epg["static_binding_encap_id"] = default_encap
+            epg["static_binding_profiles"] = matched_profiles
+            if remaining:
+                epg["static_bindings"] = remaining
+            else:
+                epg.pop("static_bindings", None)
+
+
+def policy_values(group: dict) -> dict[str, str | None]:
     refs = {
         "link_level_policy": "infraRsHIfPol",
         "cdp_policy": "infraRsCdpIfPol",
         "lldp_policy": "infraRsLldpIfPol",
         "port_channel_policy": "infraRsLacpPol",
     }
-    values = {}
+    values: dict[str, str | None] = {key: None for key in refs}
     for key, class_name in refs.items():
         rels = class_children(group, class_name)
         if rels:
@@ -516,62 +627,51 @@ def per_port_static_access(
         groups.append((name, group))
         group_modes[name] = mode
 
-    aep_names = {
-        named_dn_part(rel_target(rel, "infraRsAttEntP"), "attentp-")
-        for _, group in groups for rel in class_children(group, "infraRsAttEntP")
-        if rel_target(rel, "infraRsAttEntP")
-    }
-    if len(aep_names) != 1:
-        raise ValueError(f"Per-port policy groups resolve to {len(aep_names)} AEPs: {sorted(aep_names)}")
-    aep_name = next(iter(aep_names))
-    if aep_name not in aep_by_name:
-        raise ValueError(f"Could not find APIC attachable entity profile {aep_name!r}")
+    group_aep_names = {name: policy_group_aep(group) for name, group in groups}
+    aep_names = set(group_aep_names.values())
+    aep_name = sorted(aep_names)[0]
+    missing_aeps = sorted(aep_names - set(aep_by_name))
+    if missing_aeps:
+        raise ValueError(f"Could not find APIC attachable entity profiles {missing_aeps}")
 
     policy_groups = []
     for name, group in groups:
         values = policy_values(group)
         policy_groups.append({
-            "policy_group": name, "lag_type": group_modes[name], "aep": aep_name,
+            "policy_group": name, "lag_type": group_modes[name], "aep": group_aep_names[name],
             "link_level_policy": values.get("link_level_policy"),
             "cdp_policy": values.get("cdp_policy"), "lldp_policy": values.get("lldp_policy"),
             "port_channel_policy": values.get("port_channel_policy"),
             "description": str(attrs(group).get("descr", "")), "state": "present",
         })
 
-    physical_domain_names = sorted({
-        named_dn_part(rel_target(rel, "infraRsDomP"), "phys-")
-        for rel in class_children(aep_by_name[aep_name], "infraRsDomP")
-        if "/phys-" in rel_target(rel, "infraRsDomP")
-    })
+    aep_domains = {
+        name: sorted({
+            named_dn_part(rel_target(rel, "infraRsDomP"), "phys-")
+            for rel in class_children(aep_by_name[name], "infraRsDomP")
+            if "/phys-" in rel_target(rel, "infraRsDomP")
+        })
+        for name in sorted(aep_names)
+    }
+    physical_domain_names = sorted({domain for domains in aep_domains.values() for domain in domains})
     if not physical_domain_names:
         return None
-    pool_dns = {
-        rel_target(rel, "infraRsVlanNs")
-        for domain in physical_domains if attrs(domain).get("name") in physical_domain_names
-        for rel in class_children(domain, "infraRsVlanNs") if rel_target(rel, "infraRsVlanNs")
-    }
-    pool_by_dn = {str(attrs(pool).get("dn", "")): pool for pool in vlan_pools}
-    pools = [pool_by_dn[dn] for dn in sorted(pool_dns) if dn in pool_by_dn]
-    if len(pools) != 1:
-        raise ValueError(f"Per-port AEP domains reference {len(pools)} VLAN pools; one is required by this task")
-    pool, p_attrs = pools[0], attrs(pools[0])
-    blocks = []
-    for block in class_children(pool, "fvnsEncapBlk"):
-        b_attrs = attrs(block)
-        blocks.append({
-            "block_name": str(b_attrs.get("name", "")),
-            "block_start": yaml_int(b_attrs.get("from", "")),
-            "block_end": yaml_int(b_attrs.get("to", "")),
-            "allocation_mode": str(b_attrs.get("allocMode", p_attrs.get("allocMode", "static"))).lower(),
-        })
+    pool_records = vlan_pool_records(physical_domain_names, physical_domains, vlan_pools)
+    if not pool_records:
+        raise ValueError("Per-port AEP domains do not reference any VLAN pools")
     required = {int(binding["encap_id"]) for binding in all_bindings}
-    available = {vlan for block in blocks for vlan in range(block["block_start"], block["block_end"] + 1)}
+    available = {
+        vlan
+        for pool_record in pool_records
+        for block in pool_record["encap_blocks"]
+        for vlan in range(block["block_start"], block["block_end"] + 1)
+    }
     missing = sorted(required - available)
     if missing:
         print(
-            f"Warning: static EPG VLANs {missing} are outside APIC VLAN pool {p_attrs.get('name')!r}; "
-            "the export will preserve both live values, but repush behavior may depend on APIC accepting "
-            "static encapsulations outside the pool.",
+            f"Warning: static EPG VLANs {missing} are outside all VLAN pools associated with the selected domains; "
+            "the export will preserve the live values, but repush behavior may depend on APIC accepting "
+            "static encapsulations outside those pools.",
             file=sys.stderr,
         )
 
@@ -585,16 +685,20 @@ def per_port_static_access(
     ]
     return {
         "static_aep": aep_name,
+        "static_aep_domains": [{"aep": name, "domains": domains} for name, domains in aep_domains.items()],
         "static_physical_domains": physical_domain_names,
+        "static_vlan_pools": pool_records,
         "static_vlan_pool": {
-            "name": str(p_attrs.get("name", "")),
-            "pool_allocation_mode": str(p_attrs.get("allocMode", "static")).lower(),
-            "description": str(p_attrs.get("descr", "")), "encap_blocks": blocks,
+            "name": pool_records[0]["name"],
+            "pool_allocation_mode": pool_records[0]["pool_allocation_mode"],
+            "description": pool_records[0]["description"],
+            "encap_blocks": pool_records[0]["encap_blocks"],
         },
         "static_interface_policy_defaults": {
             "link_level_policy": None, "cdp_policy": None, "lldp_policy": None, "port_channel_policy": None,
         },
-        "static_leaf_profiles": [], "static_vpc_trunks": [], "static_vpc_access_ports": [],
+        "static_leaf_profiles": [], "static_switch_selectors": [], "static_vpc_selector_bindings": [],
+        "static_vpc_trunks": [], "static_vpc_access_ports": [],
         "static_single_access_policy_group": "", "static_single_access_ports": [],
         "static_interface_policy_groups": policy_groups, "static_interface_configs": port_configs,
         "_covered_binding_keys": covered_bindings,
@@ -658,12 +762,13 @@ def parse_static_access(
             raise ValueError(f"Cannot map direct static path {binding['interface']!r} to an access selector")
         card, port = map(int, port_match.groups())
         for leaf_id in leaf_ids:
-            leaf = by_node.get(leaf_id)
-            if not leaf:
+            leaves = by_node.get(leaf_id, [])
+            if not leaves:
                 raise ValueError(f"Static path uses leaf {leaf_id}, but no switch policy profile selects it")
+            profiles = {name for leaf in leaves for name in leaf["interface_profiles"]}
             candidates = [
                 selector for selector in selectors
-                if selector["interface_profile"] in leaf["interface_profiles"]
+                if selector["interface_profile"] in profiles
                 and selector["from_card"] <= card <= selector["to_card"]
                 and selector["from_port"] <= port <= selector["to_port"]
             ]
@@ -680,7 +785,7 @@ def parse_static_access(
                 )
             selected_single.append((leaf_id, candidates[0]))
 
-    # The task schema has one common AEP and one common set of interface defaults.
+    # Interface defaults remain common, while each policy group keeps its own AEP.
     relevant_group_names = vpc_names | {selector["policy_group"] for _, selector in selected_single}
     relevant_groups = [bundle_by_name[name] for name in sorted(vpc_names) if name in bundle_by_name]
     relevant_groups += [access_by_name[name] for name in sorted(relevant_group_names - vpc_names) if name in access_by_name]
@@ -689,19 +794,19 @@ def parse_static_access(
     if relevant_group_names - set(bundle_by_name) - set(access_by_name):
         raise ValueError(f"No APIC access policy group found for {sorted(relevant_group_names - set(bundle_by_name) - set(access_by_name))}")
 
-    aep_names = {per_port_config["static_aep"]} if per_port_config else set()
-    for group in relevant_groups:
-        for rel in class_children(group, "infraRsAttEntP"):
-            target = rel_target(rel, "infraRsAttEntP")
-            if target:
-                aep_names.add(named_dn_part(target, "attentp-"))
-    if len(aep_names) != 1:
-        raise ValueError(f"Static access policy groups resolve to {len(aep_names)} AEPs; this task schema supports one: {sorted(aep_names)}")
-    aep_name = next(iter(aep_names))
-    aep = aep_by_name.get(aep_name)
-    if not aep:
-        raise ValueError(f"Could not find APIC attachable entity profile {aep_name!r}")
-
+    group_aep_names = {
+        str(attrs(group).get("name", "")): policy_group_aep(group)
+        for group in relevant_groups
+    }
+    aep_names = set(group_aep_names.values())
+    if per_port_config:
+        aep_names.update(row["aep"] for row in per_port_config["static_aep_domains"])
+    if not aep_names:
+        raise ValueError("Static access policy groups do not reference an AEP")
+    aep_name = sorted(aep_names)[0]
+    missing_aeps = sorted(aep_names - set(aep_by_name))
+    if missing_aeps:
+        raise ValueError(f"Could not find APIC attachable entity profiles {missing_aeps}")
     defaults = {
         "link_level_policy": set(),
         "cdp_policy": set(),
@@ -712,17 +817,25 @@ def parse_static_access(
         for key, value in policy_values(group).items():
             if value:
                 defaults[key].add(value)
-    for key, values in defaults.items():
-        if len(values) > 1:
-            raise ValueError(f"Static access policy groups use multiple {key} values; the current matrix supports one: {sorted(values)}")
-    interface_defaults = {key: next(iter(values)) if values else None for key, values in defaults.items()}
+    interface_defaults = {
+        key: next(iter(values)) if len(values) == 1 else None
+        for key, values in defaults.items()
+    }
 
-    physical_domain_names = sorted(
-        {
+    aep_domains = {
+        name: {
             named_dn_part(rel_target(rel, "infraRsDomP"), "phys-")
-            for rel in class_children(aep, "infraRsDomP")
+            for rel in class_children(aep_by_name[name], "infraRsDomP")
             if "/phys-" in rel_target(rel, "infraRsDomP")
         }
+        for name in aep_names
+    }
+    if per_port_config:
+        for row in per_port_config["static_aep_domains"]:
+            aep_domains[row["aep"]].update(row["domains"])
+    physical_domain_names = sorted(
+        {domain for domains in aep_domains.values() for domain in domains}
+        | (set(per_port_config["static_physical_domains"]) if per_port_config else set())
     )
     if not physical_domain_names:
         physical_domain_names = sorted(
@@ -734,46 +847,25 @@ def parse_static_access(
             }
         )
 
-    pool_dns = set()
-    for domain in physical_domains:
-        if attrs(domain).get("name") in physical_domain_names:
-            for rel in class_children(domain, "infraRsVlanNs"):
-                target = rel_target(rel, "infraRsVlanNs")
-                if target:
-                    pool_dns.add(target)
-    pool_by_dn = {str(attrs(pool).get("dn", "")): pool for pool in vlan_pools}
-    matching_pools = [pool_by_dn[dn] for dn in sorted(pool_dns) if dn in pool_by_dn]
-    if len(matching_pools) != 1:
-        raise ValueError(
-            f"The selected physical domains reference {len(matching_pools)} VLAN pools; this matrix schema supports one. "
-            "Review the pool associations before re-pushing."
-        )
-    pool = matching_pools[0]
-    p_attrs = attrs(pool)
-    pool_blocks = []
-    for block in class_children(pool, "fvnsEncapBlk"):
-        b_attrs = attrs(block)
-        pool_blocks.append(
-            {
-                "block_name": str(b_attrs.get("name", "")),
-                "block_start": yaml_int(b_attrs.get("from", "")),
-                "block_end": yaml_int(b_attrs.get("to", "")),
-                "allocation_mode": str(b_attrs.get("allocMode", p_attrs.get("allocMode", "static"))).lower(),
-            }
-        )
-    pool_name = str(p_attrs.get("name", ""))
+    pool_records = vlan_pool_records(physical_domain_names, physical_domains, vlan_pools)
+    if not pool_records:
+        raise ValueError("The selected physical domains do not reference any VLAN pools")
+    primary_pool = pool_records[0]
+    pool_name = primary_pool["name"]
+    pool_blocks = primary_pool["encap_blocks"]
     required_encaps = {int(binding["encap_id"]) for binding in all_bindings}
     available_encaps = {
         vlan
-        for block in pool_blocks
+        for pool_record in pool_records
+        for block in pool_record["encap_blocks"]
         for vlan in range(block["block_start"], block["block_end"] + 1)
     }
     missing_encaps = sorted(required_encaps - available_encaps)
     if missing_encaps:
         print(
-            f"Warning: static EPG VLANs {missing_encaps} are outside APIC VLAN pool {pool_name!r}; "
-            "the export will preserve both live values, but repush behavior may depend on APIC accepting "
-            "static encapsulations outside the pool.",
+            f"Warning: static EPG VLANs {missing_encaps} are outside all VLAN pools associated with the selected domains; "
+            "the export will preserve the live values, but repush behavior may depend on APIC accepting "
+            "static encapsulations outside those pools.",
             file=sys.stderr,
         )
 
@@ -784,33 +876,72 @@ def parse_static_access(
         used_leafs.update(int(value) for value in values)
     static_leaf_profiles = []
     for node_id in sorted(used_leafs):
-        leaf = by_node.get(node_id)
-        if not leaf:
+        leaves = by_node.get(node_id, [])
+        if not leaves:
             raise ValueError(f"No switch policy profile selects leaf {node_id}")
-        if leaf["block_from"] != leaf["block_to"]:
-            raise ValueError(
-                f"Leaf {node_id} belongs to selector range {leaf['block_from']}-{leaf['block_to']}; "
-                "task_configure_static_access_ports.yml only supports one node per selector"
-            )
-        interface_names = sorted(leaf["interface_profiles"])
-        used_profiles = sorted(
-            name for name in interface_names
-            if any(s["interface_profile"] == name for s in selected_vpc)
-            or any(s["interface_profile"] == name for _, s in selected_single)
-        )
-        if len(used_profiles) != 1:
-            raise ValueError(f"Leaf {node_id} maps to {len(used_profiles)} relevant interface profiles; expected one")
-        static_leaf_profiles.append(
-            {
-                "node_id": node_id,
-                "switch_profile": leaf["switch_profile"],
-                "leaf_selector": leaf["leaf_selector"],
-                "node_block": leaf["node_block"],
-                "interface_profile": used_profiles[0],
+        node_vpc_groups = {
+            str(binding["interface"])
+            for binding in legacy_bindings
+            if binding["interface_type"] == "vpc"
+            and node_id in {
+                int(leaf)
+                for leaf in (binding["leafs"] if isinstance(binding["leafs"], list) else [binding["leafs"]])
             }
-        )
+        }
+        used_profiles = sorted({
+            selector["interface_profile"]
+            for selector in selected_vpc
+            if selector["policy_group"] in node_vpc_groups
+            and any(selector["interface_profile"] in leaf["interface_profiles"] for leaf in leaves)
+        } | {
+            selector["interface_profile"]
+            for leaf_id, selector in selected_single
+            if leaf_id == node_id
+        })
+        if not used_profiles:
+            raise ValueError(
+                f"Leaf {node_id} has no relevant interface profile for its captured static paths. "
+                f"Candidates: {[(leaf['switch_profile'], leaf['leaf_selector'], sorted(leaf['interface_profiles'])) for leaf in leaves]}"
+            )
+        for interface_profile in used_profiles:
+            matching_leaves = [leaf for leaf in leaves if interface_profile in leaf["interface_profiles"]]
+            identities = {
+                (leaf["switch_profile"], leaf["leaf_selector"], leaf["node_block"], leaf["block_from"], leaf["block_to"])
+                for leaf in matching_leaves
+            }
+            if len(identities) != 1:
+                raise ValueError(
+                    f"Leaf {node_id} has {len(identities)} switch selectors for relevant interface profile "
+                    f"{interface_profile!r}: {sorted(identities)}"
+                )
+            leaf = matching_leaves[0]
+            static_leaf_profiles.append(
+                {
+                    "node_id": node_id,
+                    "switch_profile": leaf["switch_profile"],
+                    "leaf_selector": leaf["leaf_selector"],
+                    "node_block": leaf["node_block"],
+                    "block_from": leaf["block_from"],
+                    "block_to": leaf["block_to"],
+                    "interface_profile": interface_profile,
+                }
+            )
 
-    leaf_profile_by_node = {row["node_id"]: row for row in static_leaf_profiles}
+    switch_selector_map = {}
+    for leaf in static_leaf_profiles:
+        key = (
+            leaf["switch_profile"], leaf["leaf_selector"], leaf["node_block"],
+            leaf["block_from"], leaf["block_to"],
+        )
+        switch_selector_map[key] = {
+            "switch_profile": leaf["switch_profile"],
+            "leaf_selector": leaf["leaf_selector"],
+            "node_block": leaf["node_block"],
+            "block_from": leaf["block_from"],
+            "block_to": leaf["block_to"],
+        }
+    static_switch_selectors = [switch_selector_map[key] for key in sorted(switch_selector_map)]
+
     vpc_trunks = []
     vpc_access = []
     grouped_vpc: dict[tuple[str, str], list[dict]] = {}
@@ -825,17 +956,21 @@ def parse_static_access(
         expected_leafs = sorted({int(leaf) for binding in matching_bindings for leaf in binding["leafs"]})
         if not expected_leafs:
             continue
-        if expected_leafs != sorted(used_leafs):
-            raise ValueError(
-                f"The current vPC selector task applies every vPC to every static leaf; {group_name} uses {expected_leafs}, "
-                f"while the tenant matrices use {sorted(used_leafs)}. The task schema cannot safely represent these paths."
-            )
         by_profile = {row["interface_profile"]: row for row in records}
         chosen = []
         for leaf_id in expected_leafs:
-            profile_name = leaf_profile_by_node[leaf_id]["interface_profile"]
-            if profile_name not in by_profile:
-                raise ValueError(f"vPC selector {selector_name} / {group_name} is missing from interface profile {profile_name}")
+            candidates = {
+                profile
+                for leaf in by_node.get(leaf_id, [])
+                for profile in leaf["interface_profiles"]
+                if profile in by_profile
+            }
+            if len(candidates) != 1:
+                raise ValueError(
+                    f"vPC selector {selector_name} / {group_name} maps to {len(candidates)} interface profiles "
+                    f"on leaf {leaf_id}: {sorted(candidates)}"
+                )
+            profile_name = next(iter(candidates))
             chosen.append(by_profile[profile_name])
         port_ids = {(row["from_port"], row["to_port"], row["from_card"], row["to_card"]) for row in chosen}
         block_names = {row["port_blk"] for row in chosen}
@@ -849,6 +984,9 @@ def parse_static_access(
         mode = modes[0] if modes else "regular"
         item = {
             "interface": group_name,
+            "aep": group_aep_names[group_name],
+            **policy_values(bundle_by_name[group_name]),
+            "interface_profiles": sorted({row["interface_profile"] for row in chosen}),
             "access_port_selector": selector_name,
             "port_blk": next(iter(block_names)),
             "port_id": from_port,
@@ -890,43 +1028,76 @@ def parse_static_access(
                 "state": "present",
             }
         )
-    if len(single_policy_names) > 1:
-        raise ValueError(
-            f"Direct static ports use multiple leaf policy groups {sorted(single_policy_names)}; "
-            "task_configure_static_access_ports.yml currently accepts one static_single_access_policy_group"
-        )
     single_group = next(iter(single_policy_names), "")
+
+    single_policy_groups = [
+        {
+            "policy_group": name,
+            "aep": policy_group_aep(access_by_name[name]),
+            **policy_values(access_by_name[name]),
+        }
+        for name in sorted(single_policy_names)
+    ]
+
+    # Preserve each live AEP's domain associations. Several AEPs may share
+    # domains, while each AEP can also have its own domain set.
+    aep_domain_map = {name: set(domains) for name, domains in aep_domains.items()}
+    if not any(aep_domain_map.values()):
+        fallback_domains = set(physical_domain_names)
+        if not fallback_domains:
+            fallback_domains = {
+                domain
+                for matrix in tenant_matrices
+                for epg in matrix["vlan_migration_list"]
+                for domain in epg["physical_domains"]
+            }
+        aep_domain_map[aep_name].update(fallback_domains)
+    static_aep_domains = [
+        {"aep": name, "domains": sorted(domains)}
+        for name, domains in sorted(aep_domain_map.items())
+    ]
+
+    vpc_selector_bindings = [
+        {"binding": binding, "interface_profile": interface_profile}
+        for binding in vpc_trunks + vpc_access
+        for interface_profile in binding["interface_profiles"]
+    ]
 
     return {
         "static_aep": aep_name,
+        "static_aep_domains": static_aep_domains,
         "static_physical_domains": physical_domain_names,
+        "static_vlan_pools": pool_records,
         "static_vlan_pool": {
             "name": pool_name,
-            "pool_allocation_mode": str(p_attrs.get("allocMode", "static")).lower(),
-            "description": str(p_attrs.get("descr", "")),
+            "pool_allocation_mode": primary_pool["pool_allocation_mode"],
+            "description": primary_pool["description"],
             "encap_blocks": pool_blocks,
         },
         "static_interface_policy_defaults": interface_defaults,
         "static_leaf_profiles": static_leaf_profiles,
+        "static_switch_selectors": static_switch_selectors,
+        "static_vpc_selector_bindings": vpc_selector_bindings,
         "static_vpc_trunks": vpc_trunks,
         "static_vpc_access_ports": vpc_access,
         "static_single_access_policy_group": single_group,
+        "static_single_access_policy_groups": single_policy_groups,
         "static_single_access_ports": single_access_ports,
         "static_interface_policy_groups": (per_port_config or {}).get("static_interface_policy_groups", []),
         "static_interface_configs": (per_port_config or {}).get("static_interface_configs", []),
     }
 
 
-def reserve_output_paths(directory: Path) -> tuple[str, dict[str, Path]]:
+def reserve_output_paths(directory: Path, tenant_roles: list[str]) -> tuple[str, dict[str, Path]]:
     stamp = time.strftime("%Y%m%d_%H%M%S")
     counter = 1
     while True:
         suffix = f"{stamp}_{counter:02d}"
-        paths = {
-            "static": directory / f"static_access_matrix_generated_{suffix}.yml",
-            "prod": directory / f"prod_matrix_generated_{suffix}.yml",
-            "dmz": directory / f"dmz_matrix_generated_{suffix}.yml",
-        }
+        paths = {"static": directory / f"static_access_matrix_generated_{suffix}.yml"}
+        paths.update({
+            role: directory / f"{role}_matrix_generated_{suffix}.yml"
+            for role in tenant_roles
+        })
         if not any(path.exists() for path in paths.values()):
             return suffix, paths
         counter += 1
@@ -955,6 +1126,10 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=Path("."), help="Directory for generated YAML files")
     parser.add_argument("--prod-template", type=Path, default=Path("prod_matrix.yml"), help="File supplying the production tenant name")
     parser.add_argument("--dmz-template", type=Path, default=Path("dmz_matrix.yml"), help="File supplying the DMZ tenant name")
+    parser.add_argument(
+        "--binding-profiles", type=Path, default=Path("static_binding_profiles.yml"),
+        help="File containing reusable static binding profiles",
+    )
     args = parser.parse_args()
 
     try:
@@ -966,10 +1141,23 @@ def main() -> int:
         if not host:
             raise ValueError("No APIC hostname provided; use --apic or configure inventory.yml")
         password = getpass.getpass(f"APIC password for {args.username}: ")
-        prod_tenant = read_tenant_name(args.prod_template)
-        dmz_tenant = read_tenant_name(args.dmz_template)
-        if prod_tenant == dmz_tenant:
+        template_tenants = {
+            "prod": read_tenant_name(args.prod_template),
+            "dmz": read_tenant_name(args.dmz_template),
+        }
+        if template_tenants["prod"] == template_tenants["dmz"]:
             raise ValueError("Production and DMZ templates resolve to the same tenant; refusing ambiguous output")
+        binding_profiles: dict[str, list[dict]] = {}
+        if args.binding_profiles.exists():
+            profile_data = yaml.safe_load(args.binding_profiles.read_text(encoding="utf-8")) or {}
+            binding_profiles = profile_data.get("static_binding_profiles", {})
+            if not isinstance(binding_profiles, dict):
+                raise ValueError(f"{args.binding_profiles} must define static_binding_profiles as a mapping")
+        else:
+            print(
+                f"Binding profile file {args.binding_profiles} not found; exported bindings will remain inline.",
+                file=sys.stderr,
+            )
 
         apic = Apic(host, args.username, password, verify_tls=not args.insecure)
         print(f"Logging in to {host} and reading APIC configuration (read-only)...", file=sys.stderr)
@@ -979,36 +1167,30 @@ def main() -> int:
             for tenant in apic.class_query("fvTenant", include_children=False)
             if attrs(tenant).get("name")
         }
-        epg_index = apic.class_query("fvAEPg", include_children=False)
-        epg_tenants = {
-            tenant_from_dn(str(attrs(epg).get("dn", "")))
-            for epg in epg_index
-            if tenant_from_dn(str(attrs(epg).get("dn", "")))
-        }
-        prod_tenant = choose_live_tenant(prod_tenant, "production", epg_tenants, {dmz_tenant})
-        dmz_tenant = choose_live_tenant(dmz_tenant, "DMZ", epg_tenants, {prod_tenant})
-        prod_epg_records = apic.tenant_query(prod_tenant, "fvAEPg")
-        prod_bd_records = apic.tenant_query(prod_tenant, "fvBD")
-        dmz_epg_records = apic.tenant_query(dmz_tenant, "fvAEPg")
-        dmz_bd_records = apic.tenant_query(dmz_tenant, "fvBD")
-        if not prod_epg_records:
-            raise ValueError(
-                f"APIC indexed EPGs under {prod_tenant!r} but the tenant-scoped EPG query returned none"
-            )
-        if not dmz_epg_records:
-            raise ValueError(f"APIC returned no EPGs for DMZ tenant {dmz_tenant!r}")
-        prod = tenant_matrix(
-            prod_tenant,
-            prod_epg_records,
-            prod_bd_records,
-        )
-        dmz = tenant_matrix(
-            dmz_tenant,
-            dmz_epg_records,
-            dmz_bd_records,
-        )
+        print(f"APIC tenants found: {', '.join(sorted(live_tenants)) or '(none)'}")
+
+        tenant_matrices: dict[str, dict] = {}
+        ignored_tenants: list[tuple[str, str, str]] = []
+        for role, tenant_name in template_tenants.items():
+            if tenant_name not in live_tenants:
+                ignored_tenants.append((role, tenant_name, "not present on APIC"))
+                continue
+            epg_records = apic.tenant_query(tenant_name, "fvAEPg")
+            if not epg_records:
+                ignored_tenants.append((role, tenant_name, "no EPGs found"))
+                continue
+            bd_records = apic.tenant_query(tenant_name, "fvBD")
+            matrix_data = tenant_matrix(tenant_name, epg_records, bd_records)
+            tenant_matrices[role] = matrix_data
+
+        for role, tenant_name, reason in ignored_tenants:
+            print(f"Ignored {role} tenant {tenant_name!r}: {reason}.")
+        if not tenant_matrices:
+            print("No configured tenants were exportable; no matrix files were created.")
+            return 0
+
         static = parse_static_access(
-            [prod, dmz],
+            list(tenant_matrices.values()),
             apic.class_query("infraNodeP"),
             apic.class_query("infraAccPortP"),
             apic.class_query("infraAccBndlGrp"),
@@ -1019,17 +1201,22 @@ def main() -> int:
             apic.class_query("infraPortConfig", include_children=False),
         )
         # Catch incomplete or malformed output before creating any files.
-        for tenant_matrix_data in (prod, dmz):
+        for tenant_matrix_data in tenant_matrices.values():
             for epg in tenant_matrix_data["vlan_migration_list"]:
                 if not epg["ap_name"] or not epg["vrf_name"]:
-                    raise ValueError(f"EPG {epg['name']!r} is missing an application profile or VRF")
+                    raise ValueError(f"EPG {epg['epg_name']!r} is missing an application profile or VRF")
                 for binding in epg["static_bindings"]:
                     required = ("encap_id", "deploy_immediacy", "interface_mode", "interface_type", "pod_id", "leafs", "interface")
                     missing = [field for field in required if field not in binding or binding[field] in (None, "", [])]
                     if missing:
-                        raise ValueError(f"EPG {epg['name']!r} has a static path missing {missing}")
-        _, paths = reserve_output_paths(output_dir)
-        write_new_files(paths, {"static": static, "prod": prod, "dmz": dmz})
+                        raise ValueError(f"EPG {epg['epg_name']!r} has a static path missing {missing}")
+        for tenant_matrix_data in tenant_matrices.values():
+            compact_static_bindings(tenant_matrix_data, binding_profiles)
+        content = {"static": static, **tenant_matrices}
+        _, paths = reserve_output_paths(output_dir, list(tenant_matrices))
+        write_new_files(paths, content)
+        for role, matrix_data in tenant_matrices.items():
+            print(f"Exported {role} tenant {matrix_data['tenant_name']!r}.")
         print("Created:")
         for path in paths.values():
             print(f"  {path}")

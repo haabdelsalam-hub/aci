@@ -1,18 +1,22 @@
 tenant_name: Tenant_Tenant_DMZ
+bridge_domains:
+- bd_name: Web_dmz
+  vrf_name: VRF_dmz_Web
+  enable_routing: false
+  l2_unknown_unicast: flood
+  arp_flooding: true
 vlan_migration_list:
-- epg_name: 210
-  encap_id: 210
-  name: Web_dmz
+- epg_name: Web_dmz
   ap_name: AP_Web_Stack
   vrf_name: VRF_dmz_Web
+  bd_name: Web_dmz
   vmware_domains:
   - vCenter_Cluster_A_VMM
   nutanix_domains: []
   physical_domains:
   - BareMetal_Rack1_PhysDom
   static_bindings:
-  - enabled: true
-    encap_id: 210
+  - encap_id: 210
     deploy_immediacy: immediate
     interface_mode: trunk
     interface_type: vpc
