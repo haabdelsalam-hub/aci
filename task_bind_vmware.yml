@@ -13,7 +13,7 @@
     domain_type: vmm
     vm_provider: vmware
     state: present
-  loop: "{{ vlan_migration_list | subelements('vmware_domains', skip_missing=True) }}"
+  loop: "{{ (vlan_migration_list | default([])) | subelements('vmware_domains', skip_missing=True) }}"
   loop_control:
     label: "VMware Link -> {{ tenant_name }} -> {{ item.0.epg_name }} to VMM: {{ item.1 }}"
 

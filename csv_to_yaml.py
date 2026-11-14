@@ -10,7 +10,6 @@ import yaml
 
 REQUIRED_COLUMNS = {
     "tenant_name", "epg_name", "ap_name", "vrf_name",
-    "vmware_domains", "nutanix_domains", "physical_domains",
 }
 LIST_COLUMNS = ("vmware_domains", "nutanix_domains", "physical_domains")
 TENANT_CSV_COLUMNS = (
@@ -100,7 +99,7 @@ def convert(csv_path, yaml_path):
                 )
             bridge_domains[row["bd_name"]] = bd_config
             for column in LIST_COLUMNS:
-                row[column] = parse_json_cell(raw[column], column, line_number)
+                row[column] = parse_json_cell(raw.get(column), column, line_number)
             bindings = parse_json_cell(raw.get("static_bindings"), "static_bindings", line_number)
             profile_names = parse_json_cell(
                 raw.get("static_binding_profiles"), "static_binding_profiles", line_number
@@ -108,8 +107,6 @@ def convert(csv_path, yaml_path):
 
             if not all(row[key] for key in ("epg_name", "ap_name", "vrf_name")):
                 raise ValueError(f"line {line_number}: epg_name, ap_name, and vrf_name are required")
-            if not bindings and not profile_names:
-                raise ValueError(f"line {line_number}: EPG needs static_bindings or static_binding_profiles")
             for binding in bindings:
                 if not isinstance(binding, dict):
                     raise ValueError(f"line {line_number}: each static binding must be a JSON object")
@@ -228,8 +225,6 @@ def convert_tenant_yaml_to_csv(yaml_path, csv_path):
         profiles = epg.get("static_binding_profiles", [])
         if not isinstance(bindings, list) or not isinstance(profiles, list):
             raise ValueError(f"EPG {epg.get('epg_name', index)!r} static bindings and profile references must be lists")
-        if not bindings and not profiles:
-            raise ValueError(f"EPG {epg.get('epg_name', index)!r} has no static bindings or profile references")
         row = {
             "tenant_name": tenant_name,
             "epg_name": epg.get("epg_name", ""),

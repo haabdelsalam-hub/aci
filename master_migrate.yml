@@ -24,6 +24,33 @@
     # Hardcoded domain variables have been completely removed!
 
   tasks:
+    - name: Initialize normalized EPG rows
+      ansible.builtin.set_fact:
+        _normalized_epg_rows: []
+      tags: [always]
+
+    - name: Normalize optional EPG list fields
+      ansible.builtin.set_fact:
+        _normalized_epg_rows: >-
+          {{ _normalized_epg_rows + [epg_entry | combine({
+            'vmware_domains': epg_entry.vmware_domains | default([], true),
+            'nutanix_domains': epg_entry.nutanix_domains | default([], true),
+            'physical_domains': epg_entry.physical_domains | default([], true),
+            'static_bindings': epg_entry.static_bindings | default([], true),
+            'static_binding_profiles': epg_entry.static_binding_profiles | default([], true)
+          })] }}
+      loop: "{{ vlan_migration_list | default([], true) }}"
+      loop_control:
+        loop_var: epg_entry
+        label: "{{ epg_entry.epg_name | default('unnamed EPG') }}"
+      tags: [always]
+
+    - name: Normalize optional tenant matrix lists
+      ansible.builtin.set_fact:
+        vlan_migration_list: "{{ _normalized_epg_rows }}"
+        bridge_domains: "{{ bridge_domains | default([], true) }}"
+      tags: [always]
+
     - name: Run Automated Safety Configuration Snapshot
       ansible.builtin.import_tasks: task_create_snapshot.yml
       tags: [always, core, vmware, nutanix, physical, rollback]

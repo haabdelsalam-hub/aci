@@ -14,7 +14,7 @@
     vm_provider: nutanix
     resolution_immediacy: pre-provision
     state: present
-  loop: "{{ vlan_migration_list | subelements('nutanix_domains', skip_missing=True) }}"
+  loop: "{{ (vlan_migration_list | default([])) | subelements('nutanix_domains', skip_missing=True) }}"
   loop_control:
     label: "Nutanix Link -> {{ tenant_name }} -> {{ item.0.epg_name }} to VMM: {{ item.1 }}"
 

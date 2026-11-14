@@ -12,7 +12,7 @@
     domain: "{{ item.1 }}"              # Dynamically picks up the bare-metal / switch domain name
     domain_type: phys                   # Specifies Physical Domain infrastructure mapping
     state: present
-  loop: "{{ vlan_migration_list | subelements('physical_domains', skip_missing=True) }}"
+  loop: "{{ (vlan_migration_list | default([])) | subelements('physical_domains', skip_missing=True) }}"
   register: physical_domain_binding_result
   retries: 3
   delay: 3

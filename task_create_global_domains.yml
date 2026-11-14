@@ -10,8 +10,7 @@
     domain_type: vmm
     vm_provider: vmware            # Fixed parameter name (added underscore)
     state: present
-  loop: "{{ vlan_migration_list | map(attribute='vmware_domains') | flatten | unique | list }}"
-  when: vlan_migration_list | map(attribute='vmware_domains') | flatten | length > 0
+  loop: "{{ vlan_migration_list | default([]) | selectattr('vmware_domains', 'defined') | map(attribute='vmware_domains') | flatten | unique | list }}"
 
 - name: Domain Base - Create Global Nutanix VMM Domains if missing
   cisco.aci.aci_domain:
@@ -24,8 +23,7 @@
     domain_type: vmm
     vm_provider: nutanix           # Fixed parameter name (added underscore)
     state: present
-  loop: "{{ vlan_migration_list | map(attribute='nutanix_domains') | flatten | unique | list }}"
-  when: vlan_migration_list | map(attribute='nutanix_domains') | flatten | length > 0
+  loop: "{{ vlan_migration_list | default([]) | selectattr('nutanix_domains', 'defined') | map(attribute='nutanix_domains') | flatten | unique | list }}"
 
 - name: Domain Base - Create Global Physical Domains if missing
   cisco.aci.aci_domain:
@@ -37,8 +35,7 @@
     domain: "{{ item }}"
     domain_type: phys
     state: present
-  loop: "{{ vlan_migration_list | map(attribute='physical_domains') | flatten | unique | list }}"
-  when: vlan_migration_list | map(attribute='physical_domains') | flatten | length > 0
+  loop: "{{ vlan_migration_list | default([]) | selectattr('physical_domains', 'defined') | map(attribute='physical_domains') | flatten | unique | list }}"
 
 # ... keep your 3 existing domain creation tasks at the top exactly as they are ...
 
@@ -55,8 +52,7 @@
   until: vmware_check.imdata | length > 0
   retries: 6
   delay: 2
-  loop: "{{ vlan_migration_list | map(attribute='vmware_domains') | flatten | unique | list }}"
-  when: vlan_migration_list | map(attribute='vmware_domains') | flatten | length > 0
+  loop: "{{ vlan_migration_list | default([]) | selectattr('vmware_domains', 'defined') | map(attribute='vmware_domains') | flatten | unique | list }}"
 
 - name: Domain Base - Wait for Nutanix VMM Domains to register in APIC database
   cisco.aci.aci_rest:
@@ -71,8 +67,7 @@
   until: nutanix_check.imdata | length > 0
   retries: 6
   delay: 2
-  loop: "{{ vlan_migration_list | map(attribute='nutanix_domains') | flatten | unique | list }}"
-  when: vlan_migration_list | map(attribute='nutanix_domains') | flatten | length > 0
+  loop: "{{ vlan_migration_list | default([]) | selectattr('nutanix_domains', 'defined') | map(attribute='nutanix_domains') | flatten | unique | list }}"
 
 - name: Domain Base - Wait for Physical Domains to register in APIC database
   cisco.aci.aci_rest:
@@ -87,6 +82,5 @@
   until: phys_check.imdata | length > 0
   retries: 6
   delay: 2
-  loop: "{{ vlan_migration_list | map(attribute='physical_domains') | flatten | unique | list }}"
-  when: vlan_migration_list | map(attribute='physical_domains') | flatten | length > 0
+  loop: "{{ vlan_migration_list | default([]) | selectattr('physical_domains', 'defined') | map(attribute='physical_domains') | flatten | unique | list }}"
 

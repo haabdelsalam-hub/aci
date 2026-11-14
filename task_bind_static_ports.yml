@@ -7,7 +7,7 @@
     fail_msg: >-
       EPG {{ item.epg_name }} must define static_binding_encap_id and reference
       only profiles present in static_binding_profiles.yml.
-  loop: "{{ vlan_migration_list | selectattr('static_binding_profiles', 'defined') | list }}"
+  loop: "{{ vlan_migration_list | default([], true) | selectattr('static_binding_profiles') | list }}"
   loop_control:
     label: "{{ item.epg_name }}"
 
@@ -31,7 +31,7 @@
     extpaths: "{{ item.1.extpaths | default(omit) }}"
     description: "{{ item.1.description | default(omit) }}"
     state: "{{ item.1.state }}"
-  loop: "{{ vlan_migration_list | subelements('static_bindings', skip_missing=True) }}"
+  loop: "{{ (vlan_migration_list | default([])) | subelements('static_bindings', skip_missing=True) }}"
   register: epg_static_binding_result
   retries: 3
   delay: 3
@@ -46,7 +46,7 @@
     file: task_bind_static_profile.yml
     apply:
       tags: [static]
-  loop: "{{ vlan_migration_list | subelements('static_binding_profiles', skip_missing=True) }}"
+  loop: "{{ (vlan_migration_list | default([])) | subelements('static_binding_profiles', skip_missing=True) }}"
   tags: [static]
   loop_control:
     loop_var: epg_profile
