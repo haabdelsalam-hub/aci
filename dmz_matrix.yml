@@ -10,4 +10,15 @@ vlan_migration_list:
   physical_domains: []
   static_binding_encap_id: 230
   static_binding_profiles: []
+  static_bindings:    #optional additional static binding not in profiles
+  - encap_id : 230
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    interface_type: vpc
+    pod_id: 1
+    leafs: ['101', '102']
+    interface: Server06_VPC
+    description: Server 6 trunk on eth1/6 of both leaves
+    state: present
+
 

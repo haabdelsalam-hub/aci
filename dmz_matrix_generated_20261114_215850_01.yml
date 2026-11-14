@@ -1,0 +1,38 @@
+tenant_name: Tenant_Tenant_DMZ
+bridge_domains:
+- bd_name: BD-FinSystem
+  vrf_name: VRF_DMZ
+  enable_routing: false
+  l2_unknown_unicast: flood
+  arp_flooding: true
+- bd_name: bd-40
+  vrf_name: VRF_DMZ
+  enable_routing: false
+  l2_unknown_unicast: flood
+  arp_flooding: true
+vlan_migration_list:
+- epg_name: EPG-FinWebdmz
+  bd_name: BD-FinSystem
+  ap_name: AP_Fin_Stack
+  vrf_name: VRF_DMZ
+  vmware_domains:
+  - vCenter_Cluster_A_VMM
+  - vCenter_Cluster_B_VMM
+  nutanix_domains:
+  - PrismCentral_Zone1_VMM
+  physical_domains:
+  - BareMetal_Rack1_PhysDom
+  - phys
+  - test-phys
+  static_binding_encap_id: 230
+  static_binding_profiles:
+  - six_server_vpcs
+  - dmz_cluster_vpc
+- epg_name: epg-40
+  bd_name: bd-40
+  ap_name: ap_40_stack
+  vrf_name: VRF_DMZ
+  vmware_domains: []
+  nutanix_domains: []
+  physical_domains: []
+  static_bindings: []
